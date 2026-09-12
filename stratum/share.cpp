@@ -1,5 +1,6 @@
 
 #include "stratum.h"
+#include "share_identity.h"
 
 //void check_job(YAAMP_JOB *job)
 //{
@@ -132,9 +133,7 @@ YAAMP_SHARE *share_find(int jobid, char *extranonce2, char *ntime, char *nonce, 
 		YAAMP_SHARE *share = (YAAMP_SHARE *)li->data;
 		if(share->deleted) continue;
 
-		if(	share->jobid == jobid &&
-			!strcmp(share->extranonce2, extranonce2) && !strcmp(share->ntime, ntime) &&
-			!strcmp(share->nonce, nonce) && !strcmp(share->nonce1, nonce1))
+		if(stratum_share::matches(*share, jobid, extranonce2, ntime, nonce, nonce1))
 		{
 			g_list_share.Leave();
 			return share;
@@ -382,5 +381,4 @@ void submit_prune(YAAMP_DB *db)
 	g_list_submit.Leave();
 	if(count) db_query(db, buffer);
 }
-
 

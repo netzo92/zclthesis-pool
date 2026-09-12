@@ -10,6 +10,10 @@ The fixed header comes from block 3192878,
 read using Zclassic v2.1.2-beta6 RPC. One generated proof exactly reproduces
 that mainnet block. The other proofs satisfy Equihash for the same header;
 this fixture does not claim that their full hashes meet the block difficulty.
+These proofs also reproduce the former duplicate-cache bug: all share the same
+job/header/nonce, but each is distinct work. The native regression checks the
+production cache predicate with full solution identities and rejects exact
+replays while allowing the three distinct proofs.
 
 The webminer repository retains the original RPC provenance, GPU results,
 JavaScript verifier and independent Python hashlib verifier. This test adds

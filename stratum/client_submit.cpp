@@ -2,6 +2,7 @@
 #include "stratum.h"
 #include "submit_validation.h"
 #include "submit_status.h"
+#include "share_identity.h"
 
 uint64_t lyra2z_height = 0;
 
@@ -519,7 +520,7 @@ bool client_submit(YAAMP_CLIENT *client, json_value *json_params)
 		return false;
 	}
 
-	char extranonce2[32] = { 0 };
+	char extranonce2[65] = { 0 };
 	char extra[160] = { 0 };
 	char nonce[80] = { 0 };
 	char ntime[32] = { 0 };
@@ -624,6 +625,12 @@ bool client_submit(YAAMP_CLIENT *client, json_value *json_params)
 		}
 	}
 
+	// A single Equihash header can have multiple distinct valid solutions.
+	// Include the solution in ZCL's internal duplicate key before recording
+	// either accepted or rejected work; ordinary coin formats stay unchanged.
+	if(is_equihash && g_equihash_wn == 192 && g_equihash_wk == 7 &&
+		job->coind && !strcmp(job->coind->symbol, "ZCL"))
+		stratum_share::zcl_solution_key(equihash_solution, extranonce2);
 	YAAMP_SHARE *share = share_find(job->id, extranonce2, ntime, nonce, client->extranonce1);
 	if(share)
 	{

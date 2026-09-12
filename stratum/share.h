@@ -31,7 +31,7 @@ class YAAMP_SHARE: public YAAMP_OBJECT
 {
 public:
 	int jobid;
-	char extranonce2[64];
+	char extranonce2[65]; // includes full ZCL solution identity plus terminator
 	char ntime[32];
 	char nonce[64];
 	char nonce1[64];
@@ -108,7 +108,6 @@ bool block_confirm(int coinid, const char *hash);
 
 YAAMP_SUBMIT *submit_add(int remoteid, double difficulty);
 void submit_prune(YAAMP_DB *db);
-
 
 
 

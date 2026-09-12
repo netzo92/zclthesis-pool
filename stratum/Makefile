@@ -57,7 +57,7 @@ endif
 
 $(SOURCES): stratum.h util.h
 
-$(OBJECTS): json.h submit_validation.h
+$(OBJECTS): json.h share.h share_identity.h submit_validation.h submit_status.h
 
 $(OUTPUT): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDLIBS) $(LDFLAGS) -o $@
