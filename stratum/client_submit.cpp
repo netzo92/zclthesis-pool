@@ -107,12 +107,15 @@ void build_submit_values_equihash(YAAMP_JOB_VALUES *submitvalues, YAAMP_JOB_TEMP
 		merkle_hash = g_current_algo->merkle_func;
 	merkle_hash((char *)coinbase_bin, doublehash, coinbase_len/2);
 
-	char version_reversed[1024];
-	char prev_hash_reversed[1024];
-	char merkleroot_reversed[1024];
-	char finalsaplingroot_reversed[1024];
-	char time_reversed[1024];
-	char bits_reversed[1024];
+	// string_be copies the reversed bytes without appending a terminator.
+	// Each local buffer must retain a NUL immediately after those bytes before
+	// sprintf assembles the header; uninitialized stack tails corrupt proofs.
+	char version_reversed[1024] = {};
+	char prev_hash_reversed[1024] = {};
+	char merkleroot_reversed[1024] = {};
+	char finalsaplingroot_reversed[1024] = {};
+	char time_reversed[1024] = {};
+	char bits_reversed[1024] = {};
 
 	string_be(templ->version, version_reversed);
 	string_be(templ->prevhash_hex, prev_hash_reversed);
