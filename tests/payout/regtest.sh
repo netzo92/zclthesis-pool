@@ -7,6 +7,16 @@ umask 077
 : "${ZCL_PARAMS_DIR:?Set ZCL_PARAMS_DIR to the existing verified proving-parameter directory}"
 command -v php >/dev/null
 command -v python3 >/dev/null
+python3 - "$ZCL_PARAMS_DIR" <<'PYTEST'
+import os,sys
+from pathlib import Path
+expected=Path.home()/'.zcash-params'
+if expected.resolve()!=Path(sys.argv[1]).resolve():
+    sys.exit('Run as the node service user (sudo -H -u zclnode): this release reads proving parameters from ~/.zcash-params, not -paramsdir.')
+for name in ['sapling-spend.params','sapling-output.params','sprout-groth16.params','sprout-proving.key','sprout-verifying.key']:
+    if not (expected/name).is_file():
+        sys.exit('Missing existing proving parameter: '+name)
+PYTEST
 zcl_test_dir=$(mktemp -d /tmp/zcl-payout-regtest.XXXXXXXX)
 export ZCL_TEST_DATADIR="$zcl_test_dir"
 export ZCLCLI
@@ -32,7 +42,7 @@ cleanup() {
 }
 trap cleanup EXIT
 "$ZCLD" -daemon -regtest -regtestprotectcoinbase -datadir="$zcl_test_dir" \
-  -paramsdir="$ZCL_PARAMS_DIR" -bootstrap=0 -connect=0 -listen=0 -dnsseed=0 -discover=0 \
+  -bootstrap=0 -connect=0 -listen=0 -dnsseed=0 -discover=0 \
   -rpcbind=127.0.0.1 -rpcallowip=127.0.0.1 \
   -nuparams=5ba81b19:1 -nuparams=76b809bb:1
 for zcl_attempt in $(seq 1 60); do

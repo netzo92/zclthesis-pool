@@ -135,7 +135,8 @@ mainnet wallet or run continuous mining. It verifies that direct transparent
 coinbase payment fails, then exercises actual shielding, asynchronous operation
 results, confirmations, a Sapling-funded miner payout, exact received amounts,
 and retained operation evidence. Provide release-verified binaries and the
-existing verified proving parameters:
+existing verified proving parameters. Run as the node service user, whose normal
+home contains `.zcash-params`; this release does not support `-paramsdir`:
 
 ```sh
 ZCLD=/path/to/zclassicd ZCLCLI=/path/to/zclassic-cli \
