@@ -17,8 +17,6 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
             'username' => YIIMP_ADMIN_USER,
             'password' => YIIMP_ADMIN_PASS,
             'is_admin' => true,
-            'authKey' => 'test100key', // currently unused
-            'accessToken' => '100-token', // currently unused
         ],
     ];
 
@@ -36,12 +34,7 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
      */
     public static function findIdentityByAccessToken($token, $type = null)
     {
-        foreach (self::$users as $user) {
-            if ($user['accessToken'] === $token) {
-                return new static($user);
-            }
-        }
-
+        // The public upstream example token is not an authentication method.
         return null;
     }
 
@@ -75,7 +68,7 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
      */
     public function getAuthKey()
     {
-        return hash('sha256', YIIMP_ADMIN_USER . ':' . YIIMP_ADMIN_PASS . ':yiimp_auth');
+        return hash_hmac('sha256', YIIMP_ADMIN_USER . ':' . (defined('YIIMP_ADMIN_PASS_HASH') ? YIIMP_ADMIN_PASS_HASH : YIIMP_ADMIN_PASS), YIIMP_COOKIE_VALIDATION_KEY);
     }
 
     /**
@@ -83,7 +76,7 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
      */
     public function validateAuthKey($authKey)
     {
-        return $this->getAuthKey() === $authKey;
+        return is_string($authKey) && hash_equals($this->getAuthKey(), $authKey);
     }
 
     /**
@@ -94,6 +87,8 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
      */
     public function validatePassword($password)
     {
-        return $this->password === $password;
+        if (!is_string($password)) return false;
+        if (defined('YIIMP_ADMIN_PASS_HASH')) return password_verify($password, YIIMP_ADMIN_PASS_HASH);
+        return is_string($this->password) && $this->password !== '' && hash_equals($this->password, $password);
     }
 }

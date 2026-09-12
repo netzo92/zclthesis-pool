@@ -34,6 +34,10 @@ else {
         ];
 }
 
+if (!defined('YIIMP_COOKIE_VALIDATION_KEY') || strlen(YIIMP_COOKIE_VALIDATION_KEY) < 32) {
+    throw new \RuntimeException('Set a private random YIIMP_COOKIE_VALIDATION_KEY before starting the admin interface');
+}
+
 $config = [
     'id' => 'basic',
     'basePath' => dirname(__DIR__),
@@ -60,7 +64,7 @@ $config = [
     'components' => [
         'request' => [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
-            'cookieValidationKey' => 'YlmPlD1AbsvqCV3LLXoSvOJNhBcIAZEq',
+            'cookieValidationKey' => YIIMP_COOKIE_VALIDATION_KEY,
         ],
         'cache' => $cache_config,
         'user' => [

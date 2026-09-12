@@ -22,3 +22,12 @@ pool.zclthesis.com {
   }
   respond 405
 }
+
+# Accessible only through the operator's authenticated IAP SSH tunnel.
+http://127.0.0.1:8090 {
+  root * /opt/zcl-pool/source/yiimp2/web
+  php_fastcgi unix//run/php/php8.3-fpm.sock
+  file_server
+  header X-Content-Type-Options nosniff
+  header Cache-Control no-store
+}
