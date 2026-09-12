@@ -25,6 +25,7 @@ pool.zclthesis.com {
 
 # Accessible only through the operator's authenticated IAP SSH tunnel.
 http://127.0.0.1:8090 {
+  bind 127.0.0.1
   root * /opt/zcl-pool/source/yiimp2/web
   php_fastcgi unix//run/php/php8.3-fpm.sock
   file_server
