@@ -11,7 +11,8 @@ if [[ ! -f /opt/zcl-pool/thesis/server.mjs ]]; then
   git clone https://github.com/netzo92/zclthesis.git /opt/zcl-pool/thesis
 fi
 npm --prefix /opt/zcl-pool/thesis/scripts ci --ignore-scripts --no-audit --no-fund
-COMPOSER_ALLOW_SUPERUSER=1 composer --working-dir=/opt/zcl-pool/source/yiimp2 install --no-dev --prefer-dist --no-interaction --no-scripts
+install -d -m 0700 /var/cache/zcl-pool-composer
+COMPOSER_HOME=/var/cache/zcl-pool-composer COMPOSER_ALLOW_SUPERUSER=1 composer --working-dir=/opt/zcl-pool/source/yiimp2 install --no-dev --prefer-dist --no-interaction --no-scripts
 install -d -o www-data -g www-data -m 0770 /opt/zcl-pool/source/yiimp2/runtime /opt/zcl-pool/source/yiimp2/web/assets
 usermod -a -G zclpool www-data
 usermod -a -G www-data caddy
