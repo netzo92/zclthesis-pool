@@ -1,0 +1,13 @@
+[Unit]
+Description=Publish a verified Zclassic transparent rich-list snapshot
+After=zclassic.service
+RequiresMountsFor=/var/lib/zcl-data /var/lib/zclassic
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/zcl-pool/source/deploy/zcl/publish-richlist.py
+TimeoutStartSec=45min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0077

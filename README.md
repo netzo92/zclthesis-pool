@@ -28,10 +28,28 @@ hashpower, install a GPU, or enable daemon mining (`-gen=0`).
 v2.1.2-beta6 daemon and a restricted systemd service. Runtime wallet files,
 credentials, backups, and database data belong outside this repository.
 
-The launch fee, payout threshold, accounting window, and connection command will
-be documented here after integration validation. No mainnet payout or public
+The selected launch fee is **0.8%** (80 basis points); miners retain 99.2% of
+allocated rewards. This is 20% below a 1% fee, using zpool’s published
+Equihash 192,7 fee as a named benchmark, not a universal competitor claim.
+Payout threshold, accounting window, and connection command are confirmed during
+integration validation. No mainnet payout or public
 mining endpoint is claimed by this preliminary configuration.
 
 See [UPSTREAM-README.md](UPSTREAM-README.md) for the inherited application's
 architecture and build instructions. Upstream examples are not our production
 configuration. Preserve all upstream copyright and license notices.
+
+## Shared node and public statistics
+
+The node data directory lives in a private Btrfs subvolume. Every two hours,
+`publish-richlist.py` flushes node UTXO state, takes an atomic filesystem snapshot,
+recovers only its copied chainstate, verifies the best-block hash, full commitment,
+exact base-unit total and output count, and publishes only aggregate JSON. It
+rechecks that the snapshot block is canonical before replacing the public file.
+Failures retain the last verified file. Raw snapshots contain sensitive local
+wallet state and must never be uploaded or served.
+
+`publish-node-stats.py` publishes allowlisted read-only fields once a minute.
+Caddy serves only explicitly listed static routes and sanitized JSON. Public wallet
+RPC, database, supervisor, admin console, and mining ingress remain closed during
+validation. The private admin interface is accessed through an IAP SSH tunnel.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Publish sanitized Zclassic node statistics
+After=zclassic.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/zcl-pool/source/deploy/zcl/publish-node-stats.py
+TimeoutStartSec=90
+UMask=0077
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/zcl-public /var/lib/zclassic

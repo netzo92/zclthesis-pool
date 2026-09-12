@@ -1,0 +1,24 @@
+pool.zclthesis.com {
+  encode zstd gzip
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+  }
+  @read method GET HEAD
+  handle @read {
+    @api path /api/node.json /api/pool.json /api/richlist/zcl.json
+    handle @api {
+      root * /var/lib/zcl-public
+      header Cache-Control "public, max-age=30"
+      file_server
+    }
+    @static path / /index.html /es/ /es/index.html /style.css /status.js
+    handle @static {
+      root * /opt/zcl-pool/source/deploy/zcl/public
+      file_server
+    }
+    respond 404
+  }
+  respond 405
+}

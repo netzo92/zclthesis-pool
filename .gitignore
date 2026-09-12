@@ -29,3 +29,5 @@ web/yaamp/.idea/
 *.pem
 *.key
 .env
+
+__pycache__/

@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh the Zclassic rich list every two hours
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=2h
+AccuracySec=1min
+Unit=zcl-richlist.service
+
+[Install]
+WantedBy=timers.target
