@@ -38,6 +38,16 @@ class BlockService
      */
     public function distributeReward(Coins $coin, Blocks $block): void
     {
+        if (strtoupper($coin->symbol) === 'ZCL') {
+            $db = Yii::$app->db;
+            $db->open();
+            $solo = $this->isSoloBlock($block);
+            $fee = defined($solo ? 'YIIMP_FEES_SOLO' : 'YIIMP_FEES_MINING')
+                ? ($solo ? $this->getSoloFeePercent($coin->algo) : $this->getMiningFeePercent($coin->algo)) : 0.8;
+            (new ZclRewardLedger($db->pdo))->allocate((int) $coin->id, (int) $block->id, $solo, (string) $fee);
+            $block->refresh();
+            return;
+        }
         $reward = (float) $block->amount;
         if (!$reward || $block->algo === 'PoS' || $block->algo === 'MN') {
             return;
@@ -253,6 +263,18 @@ class BlockService
      */
     public function processNewBlocks(?int $coinId = null): void
     {
+        // A daemon-validated block may have been saved just before a process
+        // crash or failed allocation. Retry it; the allocation journal makes
+        // this safe even when multiple queue workers run concurrently.
+        $pending = Blocks::find()->alias('b')->select('b.*')->innerJoin('coins c', 'c.id=b.coin_id')
+            ->where(['c.symbol' => 'ZCL', 'c.enable' => 1])
+            ->andWhere(['b.category' => ['immature', 'generate']])
+            ->andWhere('NOT EXISTS (SELECT 1 FROM zcl_reward_rounds r WHERE r.coin_id=b.coin_id AND r.blockhash=b.blockhash)')
+            ->orderBy(['b.height' => SORT_ASC, 'b.id' => SORT_ASC]);
+        if ($coinId !== null) $pending->andWhere(['b.coin_id' => $coinId]);
+        foreach ($pending->each() as $pendingBlock) {
+            $this->distributeReward(Coins::findOne((int) $pendingBlock->coin_id), $pendingBlock);
+        }
         $query = Blocks::find()->where(['category' => 'new'])->orderBy('time');
         if ($coinId !== null) {
             $query->andWhere(['coin_id' => $coinId]);
@@ -359,6 +381,7 @@ class BlockService
     {
         $t1 = microtime(true);
         $db = Yii::$app->db;
+        $this->recheckMatureZclBlocks($coinId);
 
         $query = Blocks::find()
             ->where(['in', 'category', ['immature', 'stake', 'orphan']])
@@ -461,6 +484,15 @@ class BlockService
                     $block->category = 'orphan';
                 }
                 $block->save();
+                continue;
+            }
+
+            // ZCL retains its allocation history and never resets credited
+            // earnings. A deep reorg places all further accounting on hold.
+            if (strtoupper($coin->symbol) === 'ZCL') {
+                $db->open();
+                (new ZclRewardLedger($db->pdo))->transition((int) $coin->id, (int) $block->id,
+                    (string) $category, (int) $block->confirmations);
                 continue;
             }
 
@@ -728,6 +760,31 @@ class BlockService
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /** Detect recent post-credit ZCL reorgs without changing other coin jobs. */
+    private function recheckMatureZclBlocks(?int $coinId): void
+    {
+        $coins = Coins::find()->where(['symbol' => 'ZCL', 'enable' => 1, 'auto_ready' => 1]);
+        if ($coinId !== null) $coins->andWhere(['id' => $coinId]);
+        foreach ($coins->each() as $coin) {
+            $remote = new WalletRPC($coin);
+            $blocks = Blocks::find()->where(['coin_id' => $coin->id, 'category' => 'generate'])
+                ->andWhere(['>=', 'time', time() - 86400]);
+            foreach ($blocks->each() as $block) {
+                if (!$block->txhash) continue;
+                $tx = $remote->gettransaction($block->txhash);
+                if (!is_array($tx) || !isset($tx['confirmations'])) continue;
+                $confirmations = (int) $tx['confirmations'];
+                $category = $confirmations < 0 ? 'orphan' : ($tx['details'][0]['category'] ?? $tx['category'] ?? null);
+                if (!in_array($category, ['generate', 'immature', 'orphan'], true)) continue;
+                if ($category !== 'generate' || $confirmations < 101) {
+                    Yii::$app->db->open();
+                    (new ZclRewardLedger(Yii::$app->db->pdo))->transition((int) $coin->id, (int) $block->id,
+                        $category, $confirmations);
+                }
+            }
+        }
+    }
 
     /**
      * Determine whether a block was mined in solo mode.
