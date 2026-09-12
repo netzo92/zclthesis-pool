@@ -48,6 +48,14 @@ start false, and the single ZCL coin starts disabled.
 | ZCL payout, 1 minute | Durable shielding, miner payments and operator remittance |
 | Pool status, 1 minute | Atomically publish allowlisted readiness flags and parameters |
 
+Worker and payout timers first run one second after timer activation, including
+when private activation happens long after boot. Each next run is scheduled after
+the preceding service finishes (15 seconds for the worker, one minute for payouts),
+so slow RPC calls do not overlap executions. After installing or changing these
+units, run `systemctl daemon-reload` and restart both timers. Verify successful
+first and repeated service executions and a finite next trigger; an active timer
+alone does not prove the accounting or payout jobs ran.
+
 Do not run the generic queue initializer, generic/legacy payout sender, exchange,
 rental, purchase or automated share-pruning jobs. The scoped worker retains share
 history during validation. `solo=0` rejects solo requests at native ingress.

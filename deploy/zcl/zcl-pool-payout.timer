@@ -2,9 +2,9 @@
 Description=Check durable ZCL payout coordinator every minute
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=1min
-Persistent=true
+OnActiveSec=1s
+OnUnitInactiveSec=1min
+AccuracySec=1s
 
 [Install]
 WantedBy=timers.target

@@ -2,10 +2,9 @@
 Description=Check ZCL block and earnings pipeline every 15 seconds
 
 [Timer]
-OnBootSec=90
-OnUnitActiveSec=15
+OnActiveSec=1s
+OnUnitInactiveSec=15s
 AccuracySec=1
-Persistent=true
 
 [Install]
 WantedBy=timers.target
