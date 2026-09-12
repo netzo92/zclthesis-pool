@@ -80,6 +80,12 @@ After current-node and coinbase-template checks, enable the single ZCL coin and
 reviewed payout migrations and the private address/reserve configuration. Keep
 the generic sender disabled. Check the dedicated worker and payout status.
 
+`activate-private-pool.py` performs these read-only checks by default, including
+decoding the template and requiring its sole positive output to the configured
+hot transparent address. `--enable-private` additionally enables the scoped coin,
+worker and payout flags after those checks pass. It requires the public launch
+marker to be absent and Stratum bound to loopback; it never opens public mining.
+
 Public mining additionally requires root-owned `/etc/yiimp/launch-approved`.
 Create it only after handshake, template, target, accepted-share and payout
 readiness checks. The publisher requires this marker, active Stratum, a ready
