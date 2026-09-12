@@ -37,7 +37,8 @@ def require_current_chain(chain, header, now):
     finalization = chain.get('finalization_hold', {})
     if (type(height) is not int or height < 3126937 or chain.get('headers') != height
             or header.get('height') != height or header.get('hash') != chain.get('bestblockhash')
-            or type(progress) not in (float, int) or not math.isfinite(progress) or not 0.9999 <= progress <= 1.000001
+            or type(progress) not in (float, int, Decimal) or not math.isfinite(progress)
+            or not Decimal('0.9999') <= Decimal(str(progress)) <= Decimal('1.000001')
             or chain.get('chain') != 'main' or chain.get('initialblockdownload', False)
             or validation.get('state') not in ('disabled', 'validated') or validation.get('tip_hold') is not False
             or finalization.get('held') is not False

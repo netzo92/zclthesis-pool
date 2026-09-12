@@ -1,5 +1,7 @@
 import copy
+from decimal import Decimal
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -20,6 +22,17 @@ class Readiness(unittest.TestCase):
         chain['bootstrap_validation']['state'] = 'validated'
         publisher.require_current_chain(chain, header, header['time'] + 60)
 
+    def test_exact_rpc_decimal_progress(self):
+        chain, header = self.fixture()
+        chain['verificationprogress'] = .99999
+        # rpc() deliberately preserves decimal amounts; readiness sees the
+        # same Decimal representation for fractional verification progress.
+        chain = json.loads(json.dumps(chain), parse_float=Decimal)
+        publisher.require_current_chain(chain, header, header['time'] + 60)
+        for value in [Decimal('.99'), Decimal('NaN'), Decimal('Infinity'), True, '1.0']:
+            chain['verificationprogress'] = value
+            with self.assertRaises(RuntimeError):
+                publisher.require_current_chain(chain, header, header['time'] + 60)
     def test_sync_and_active_or_unknown_validation_holds(self):
         mutations = [lambda c: c.update(blocks=3247729), lambda c: c.update(chain='regtest'),
             lambda c: c.update(verificationprogress=float('nan')), lambda c: c.update(verificationprogress=.99),
