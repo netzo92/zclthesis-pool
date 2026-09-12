@@ -1,0 +1,206 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index eb98a68..96e7ed6 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -35,6 +35,7 @@
+ 
+ #include <algorithm>
+ #include <atomic>
++#include <limits>
+ #include <sstream>
+ 
+ #include <boost/algorithm/string/replace.hpp>
+@@ -3190,6 +3191,45 @@ void GetFinalizationHoldInfo(bool& held, int& height, std::string& reason, int64
+     since = g_finalizationHeldSince;
+ }
+ 
++LiveCorroborationInfo GetLiveCorroborationInfo()
++{
++    AssertLockHeld(cs_main);
++    LiveCorroborationInfo info = {false, uint256(), -1, -1, -1, -1, std::string()};
++    const CBlockIndex* tip = chainActive.Tip();
++    if (tip != NULL) {
++        info.tipHash = tip->GetBlockHash();
++        info.tipHeight = tip->nHeight;
++    }
++    const int64_t depth = GetArg("-maxreorgdepth", DEFAULT_MAX_REORG_DEPTH);
++    const int64_t peers = std::max(GetArg("-finalizationminpeers",
++                                        DEFAULT_FINALIZATION_MIN_PEERS), int64_t(1));
++    if (depth <= 0 || depth > std::numeric_limits<int>::max() ||
++        peers > std::numeric_limits<int>::max()) {
++        info.reason = "live corroboration requires a positive bounded depth and peer count";
++        return info;
++    }
++    info.requiredDepth = static_cast<int>(depth);
++    info.requiredPeers = static_cast<int>(peers);
++    if (tip == NULL || tip->nHeight < info.requiredDepth) {
++        info.reason = "no active candidate at the required depth";
++        return info;
++    }
++    const CBlockIndex* candidate = tip->GetAncestor(tip->nHeight - info.requiredDepth);
++    info.candidateHeight = candidate->nHeight;
++    if (BootstrapValidationHoldsFinalization()) {
++        info.reason = "bootstrap validation or imported-tip corroboration is pending";
++        return info;
++    }
++    // Reuse every production check: IBD, active ancestry, a header received live
++    // this session, independent outbound groups, and the higher-work fork veto.
++    // Do not consult or write g_finalizationHeld, call FindBlockToFinalize, or
++    // alter pindexFinalized. A later peer announcement can change this answer
++    // without connecting another block or changing finalization policy.
++    info.ready = LiveNetworkCorroboratesTip(candidate, info.requiredDepth,
++                                           info.requiredPeers, info.reason);
++    return info;
++}
++
+ static void SetFinalizationHeld(bool held, int height, const std::string& reason)
+ {
+     AssertLockHeld(cs_main);
+diff --git a/src/main.h b/src/main.h
+index 3361153..0212a04 100644
+--- a/src/main.h
++++ b/src/main.h
+@@ -672,6 +672,19 @@ bool EvaluateTipCorroboration(const CBlockIndex* pindex, bool isIBD, bool pindex
+  *  (0 when not held). For getblockchaininfo / monitoring. Must be called under cs_main. */
+ void GetFinalizationHoldInfo(bool& held, int& height, std::string& reason, int64_t& since);
+ 
++/** Fresh diagnostic only. Does not finalize blocks or modify the cached hold.
++ *  Evaluate under cs_main so tip identity and live peer views are consistent. */
++struct LiveCorroborationInfo {
++    bool ready;
++    uint256 tipHash;
++    int tipHeight;
++    int candidateHeight;
++    int requiredDepth;
++    int requiredPeers;
++    std::string reason;
++};
++LiveCorroborationInfo GetLiveCorroborationInfo();
++
+ /** The currently-connected chain of blocks (protected by cs_main). */
+ extern CChain chainActive;
+ 
+diff --git a/src/rpc/blockchain.cpp b/src/rpc/blockchain.cpp
+index 9bc1450..378d692 100644
+--- a/src/rpc/blockchain.cpp
++++ b/src/rpc/blockchain.cpp
+@@ -776,6 +776,16 @@ UniValue getblockchaininfo(const UniValue& params, bool fHelp)
+             "     \"reason\": \"xxxx\",        (string) why finalization is held (only when held)\n"
+             "     \"since\": ttt             (numeric) unix time the hold began (only when held)\n"
+             "  },\n"
++            "  \"live_corroboration\": {    (object) fresh read-only peer check, independent of the cached hold\n"
++            "     \"schemaVersion\": 1,     (numeric) diagnostic schema version\n"
++            "     \"ready\": true|false,    (boolean) current peer/ancestry/bootstrap checks pass\n"
++            "     \"tipHash\": \"xxxx\",      (string) active tip evaluated by this check\n"
++            "     \"tipHeight\": n,          (numeric) active tip height, -1 if unavailable\n"
++            "     \"candidateHeight\": n,    (numeric) evaluated ancestor, -1 if unavailable\n"
++            "     \"requiredDepth\": n,      (numeric) required descendant depth, -1 if invalid\n"
++            "     \"requiredPeers\": n,      (numeric) required independent outbound groups, -1 if invalid\n"
++            "     \"reason\": \"xxxx\"        (string) result explanation; this check never finalizes blocks\n"
++            "  },\n"
+             "  \"size_on_disk\": xxxxxx,       (numeric) the estimated size of the block and undo files on disk\n"
+             "  \"commitments\": xxxxxx,    (numeric) the current number of note commitments in the commitment tree\n"
+             "  \"softforks\": [            (array) status of softforks in progress\n"
+@@ -917,6 +927,22 @@ UniValue getblockchaininfo(const UniValue& params, bool fHelp)
+         obj.push_back(Pair("finalization_hold", fhObj));
+     }
+ 
++    {
++        // getblockchaininfo already holds cs_main. Recalculate from the same
++        // active tip and current peer views, without changing finalization.
++        const LiveCorroborationInfo live = GetLiveCorroborationInfo();
++        UniValue liveObj(UniValue::VOBJ);
++        liveObj.push_back(Pair("schemaVersion", 1));
++        liveObj.push_back(Pair("ready", live.ready));
++        liveObj.push_back(Pair("tipHash", live.tipHash.GetHex()));
++        liveObj.push_back(Pair("tipHeight", live.tipHeight));
++        liveObj.push_back(Pair("candidateHeight", live.candidateHeight));
++        liveObj.push_back(Pair("requiredDepth", live.requiredDepth));
++        liveObj.push_back(Pair("requiredPeers", live.requiredPeers));
++        liveObj.push_back(Pair("reason", live.reason));
++        obj.push_back(Pair("live_corroboration", liveObj));
++    }
++
+     if (fPruneMode)
+     {
+         CBlockIndex *block = chainActive.Tip();
+diff --git a/src/test/bootstrap_snapshot_protocol_tests.cpp b/src/test/bootstrap_snapshot_protocol_tests.cpp
+index 2ed43f3..9ecf09b 100644
+--- a/src/test/bootstrap_snapshot_protocol_tests.cpp
++++ b/src/test/bootstrap_snapshot_protocol_tests.cpp
+@@ -2482,4 +2482,75 @@ BOOST_AUTO_TEST_CASE(finalization_peer_corroboration_gate)
+                 minDepth, minPeers, heavySame, why));
+ }
+ 
++BOOST_AUTO_TEST_CASE(live_corroboration_tracks_peers_without_new_block)
++{
++    std::vector<CBlockIndex> chain;
++    BuildChain(chain, 131);
++    const CBlockIndex* tip = &chain[130];
++    const CBlockIndex* candidate = &chain[120];
++    const int64_t startup = 1000;
++    std::vector<PeerTipView> peers;
++    peers.push_back(Peer(tip, false, 1));
++    peers.push_back(Peer(&chain[129], false, 2));
++    std::string why;
++    const auto ready = [&]() {
++        return EvaluateTipCorroboration(candidate, false, true, tip,
++            startup + 5, startup, 10, 2, peers, why);
++    };
++    // First peer's block has connected; another peer still announces its parent.
++    // This is the former cached1/2 state. The chain and candidate never change.
++    BOOST_CHECK(!ready());
++    BOOST_CHECK(why.find("only 1 independent outbound") != std::string::npos);
++    peers[1].bestKnown = tip; // later announcement, with NO new connected block
++    BOOST_CHECK(ready());
++    BOOST_CHECK_EQUAL(tip->nHeight, 130);
++    BOOST_CHECK_EQUAL(candidate->nHeight, 120);
++
++    // Readiness must also close again when corroboration is lost. No cached
++    // successful check, inbound peer or duplicate group can keep it open.
++    peers[1].bestKnown = NULL;
++    BOOST_CHECK(!ready());
++    peers[1].bestKnown = tip;
++    peers[1].fInbound = true;
++    BOOST_CHECK(!ready());
++    peers[1].fInbound = false;
++    peers[1].group = peers[0].group;
++    BOOST_CHECK(!ready());
++    peers[1].group.assign(1, 2);
++    BOOST_CHECK(ready());
++
++    // Even after a successful observation, a new inbound announcement of a
++    // higher-work fork below the candidate must veto the live result.
++    std::vector<CBlockIndex> fork;
++    BuildChain(fork, 100, &chain[50]);
++    fork.back().nChainWork = arith_uint256(10000);
++    peers.push_back(Peer(&fork.back(), true, 3));
++    BOOST_CHECK(!ready());
++    BOOST_CHECK(why.find("forks below") != std::string::npos);
++    peers.pop_back();
++    BOOST_CHECK(ready());
++}
++
++BOOST_AUTO_TEST_CASE(live_corroboration_does_not_mutate_finalization)
++{
++    LOCK(cs_main);
++    bool heldBefore; int heightBefore; std::string reasonBefore; int64_t sinceBefore;
++    GetFinalizationHoldInfo(heldBefore, heightBefore, reasonBefore, sinceBefore);
++    const CBlockIndex* finalizedBefore = GetFinalizedBlock();
++    const CBlockIndex* tipBefore = chainActive.Tip();
++    const LiveCorroborationInfo live = GetLiveCorroborationInfo();
++    // The ordinary test fixture has no independently corroborating network.
++    BOOST_CHECK(!live.ready);
++    BOOST_CHECK_EQUAL(live.tipHeight, tipBefore ? tipBefore->nHeight : -1);
++    BOOST_CHECK(live.tipHash == (tipBefore ? tipBefore->GetBlockHash() : uint256()));
++    bool heldAfter; int heightAfter; std::string reasonAfter; int64_t sinceAfter;
++    GetFinalizationHoldInfo(heldAfter, heightAfter, reasonAfter, sinceAfter);
++    BOOST_CHECK_EQUAL(heldAfter, heldBefore);
++    BOOST_CHECK_EQUAL(heightAfter, heightBefore);
++    BOOST_CHECK_EQUAL(reasonAfter, reasonBefore);
++    BOOST_CHECK_EQUAL(sinceAfter, sinceBefore);
++    BOOST_CHECK(GetFinalizedBlock() == finalizedBefore);
++    BOOST_CHECK(chainActive.Tip() == tipBefore);
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
