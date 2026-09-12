@@ -661,17 +661,41 @@ double target_to_diff_coin(uint64_t target, int powlimit_bits)
 	return d;
 }
 
-// shiftcount: 19 equihash , 25 bitcoin-clones
+bool decode_compact_target(const char *input, arith_uint256& target)
+{
+	if(!input || strlen(input) != 8) return false;
+	uint32_t compact = 0;
+	for(int i = 0; i < 8; ++i) {
+		const char c = input[i];
+		unsigned int digit;
+		if(c >= '0' && c <= '9') digit = c - '0';
+		else if(c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+		else if(c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+		else return false;
+		compact = (compact << 4) | digit;
+	}
+	bool negative = false, overflow = false;
+	target.SetCompact(compact, &negative, &overflow);
+	return !negative && !overflow && target != 0;
+}
+
+bool hash_meets_compact_target(const unsigned char *hash, const char *input)
+{
+	arith_uint256 target;
+	if(!hash || !decode_compact_target(input, target)) return false;
+	uint256 value;
+	memcpy(value.begin(), hash, 32); // SHA256d bytes are the little-endian integer.
+	return UintToArith256(value) <= target;
+}
+
+// Project the full target onto the same 64-bit window as the hash reader:
+// Equihash bytes24..31 => shiftcount27; standard bytes22..29 =>25.
 uint64_t decode_compact(const char *input, int shiftdiff)
 {
-	uint64_t c = htoi64(input);
-
-	int nShift = (c >> 24) & 0xff;
-
-	nShift -= shiftdiff;
-	uint64_t v = (c & 0xFFFFFF) << (8 * nShift);
-
-	return v;
+	if(shiftdiff < 3 || shiftdiff > 35) return 0;
+	arith_uint256 target;
+	if(!decode_compact_target(input, target)) return 0;
+	return (target >> (8 * (shiftdiff - 3))).GetLow64();
 }
 
 uint64_t sharetotarg(double diff)

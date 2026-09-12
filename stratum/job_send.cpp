@@ -239,7 +239,7 @@ void job_broadcast(YAAMP_JOB *job)
 
 	bool is_equihash = (strstr(g_current_algo->name, "equihash") == g_current_algo->name);
 
-	uint64_t coin_target = decode_compact(templ->nbits, (is_equihash)? 19 : 25);
+	uint64_t coin_target = decode_compact(templ->nbits, (is_equihash)? 27 : 25);
 
 	if (templ->nbits && !coin_target) coin_target = 0xFFFF000000000000ULL; // under decode_compact min diff
 	double coin_diff = target_to_diff(coin_target);

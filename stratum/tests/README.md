@@ -19,3 +19,14 @@ work with both exchange switches disabled, while wrong payout coins and `mc`/`nc
 restrictions remain enforced, including the recovery assignment pass. Socket
 output and external dependencies are intercepted; the test has no network,
 database, daemon, GPU work or shares.
+
+`bash stratum/tests/run-compact-target.sh` additionally links the actual private
+block-dispatch function and target helpers. Independent Python integers generate
+full 256-bit boundaries, including `T-1`, `T` and `T+1` with equal high 64 bits,
+small exponents and invalid/negative/overflow compact values. The historical
+height 3,192,878 header in `fixtures/zcl-webgpu1927.txt` is verified with the native
+192,7 verifier and SHA256d, then reaches an intercepted block-submission call.
+Above-target and invalid-target hashes must never reach that call. The synthetic
+transaction body is not a valid block; this tests candidate routing and header
+validity, not daemon acceptance. All RPC/database effects are replaced, with
+ASan/UBSan enabled and no hash search, mining or live submission.

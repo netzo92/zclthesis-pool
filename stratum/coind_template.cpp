@@ -716,7 +716,7 @@ bool coind_create_job(YAAMP_COIND *coind, bool force)
 	}
 
 	bool is_equihash = (strstr(g_current_algo->name, "equihash") == g_current_algo->name);
-	uint64_t coin_target = decode_compact(templ->nbits, (is_equihash)? 19 : 25);
+	uint64_t coin_target = decode_compact(templ->nbits, (is_equihash)? 27 : 25);
 
 	if (templ->nbits && !coin_target) coin_target = 0xFFFF000000000000ULL; // under decode_compact min diff
 	coind->difficulty = target_to_diff_coin(coin_target, coind->powlimit_bits - ((is_equihash)? 0 : 16));

@@ -1,5 +1,6 @@
 
 struct YAAMP_CLIENT;
+class arith_uint256;
 
 struct COMMONLISTITEM
 {
@@ -100,7 +101,9 @@ void binlify(unsigned char *bin, const char *hex);
 unsigned int htoi(const char *s);
 uint64_t htoi64(const char *s);
 
-uint64_t decode_compact(const char *input, int shiftdiff = 19);
+uint64_t decode_compact(const char *input, int shiftdiff = 27);
+bool decode_compact_target(const char *input, arith_uint256& target);
+bool hash_meets_compact_target(const unsigned char *hash, const char *input);
 uint64_t sharetotarg(double diff);
 
 uint64_t diff_to_target(double difficulty);

@@ -250,6 +250,16 @@ static void build_submit_values_decred(YAAMP_JOB_VALUES *submitvalues, YAAMP_JOB
 
 /////////////////////////////////////////////////////////////////////////////////
 
+static bool client_hash_meets_block_target(YAAMP_JOB *job, const unsigned char *hash,
+	uint64_t hash_int, uint64_t coin_target, bool is_equihash)
+{
+	// ZCL's block route and low-difficulty exception must compare all 256 bits.
+	// A high-64-bit projection is only an estimate and can equate T with T+1.
+	if(is_equihash && job->coind && !strcmp(job->coind->symbol, "ZCL"))
+		return hash_meets_compact_target(hash, job->templ->nbits);
+	return hash_int <= coin_target;
+}
+
 static void client_do_submit(YAAMP_CLIENT *client, YAAMP_JOB *job, YAAMP_JOB_VALUES *submitvalues,
 	char *extranonce2, char *ntime, char *nonce, char *vote, uint32_t versionmask)
 {
@@ -269,7 +279,7 @@ static void client_do_submit(YAAMP_CLIENT *client, YAAMP_JOB *job, YAAMP_JOB_VAL
 		hash_int = get_hash_difficulty(submitvalues->hash_bin);
 	}
 
-	coin_target = decode_compact(templ->nbits, (is_equihash)? 19 : 25);
+	coin_target = decode_compact(templ->nbits, (is_equihash)? 27 : 25);
 	if (templ->nbits && !coin_target) coin_target = 0xFFFF000000000000ULL;
 
 	int block_size = YAAMP_SMALLBUFSIZE;
@@ -358,7 +368,7 @@ static void client_do_submit(YAAMP_CLIENT *client, YAAMP_JOB *job, YAAMP_JOB_VAL
 		CommonUnlock(&coind_aux->aux_mutex);
 	}
 
-	if(hash_int <= coin_target)
+	if(client_hash_meets_block_target(job, submitvalues->hash_bin, hash_int, coin_target, is_equihash))
 	{
 		char count_hex[8] = { 0 };
 		if (templ->txcount <= 252)
@@ -704,7 +714,7 @@ bool client_submit(YAAMP_CLIENT *client, json_value *json_params)
 	uint64_t hash_int_scaled = hash_int / 0x10000;
 
 	uint64_t user_target = share_to_target(client->difficulty_actual) * g_current_algo->diff_multiplier;
-	uint64_t coin_target = decode_compact(templ->nbits, (is_equihash)? 19 : 25);
+	uint64_t coin_target = decode_compact(templ->nbits, (is_equihash)? 27 : 25);
 
 if (g_debuglog_hash) {
         debuglog("hasc %016lx \n", hash_int_scaled);
@@ -713,7 +723,8 @@ if (g_debuglog_hash) {
         debuglog("coin %016lx \n", coin_target);
 }
 
-	if(hash_int_scaled > user_target && hash_int > coin_target)
+	if(hash_int_scaled > user_target &&
+		!client_hash_meets_block_target(job, submitvalues.hash_bin, hash_int, coin_target, is_equihash))
 	{
 		client_submit_error(client, job, 26, "Low difficulty share", extranonce2, ntime, nonce);
 		return true;

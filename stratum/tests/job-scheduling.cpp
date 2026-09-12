@@ -87,9 +87,8 @@ int main()
     std::strcpy(templ->merkleroot, std::string(64, '2').c_str());
     std::strcpy(templ->saplingroothash, std::string(64, '3').c_str());
     std::strcpy(templ->ntime, "65000000");
-    // Keep the log-only compact target representable in the inherited
-    // 64-bit formatter; this test exercises scheduling, not target math.
-    std::strcpy(templ->nbits, "1807ffff");
+    // Actual mainnet block 3192878 compact target; see zcl-webgpu1927.txt.
+    std::strcpy(templ->nbits, "1e151c4a");
     templ->height = 101;
     auto retired = make_job(1, coin.get(), templ.get());
     retired->deleted = true;
