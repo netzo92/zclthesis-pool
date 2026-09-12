@@ -4,6 +4,7 @@ import datetime as dt
 from decimal import Decimal
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -29,13 +30,27 @@ def units(value):
 def iso(epoch):
     return dt.datetime.fromtimestamp(int(epoch), dt.timezone.utc).isoformat().replace('+00:00', 'Z')
 
+def require_current_chain(chain, header, now):
+    height = chain.get('blocks')
+    progress = chain.get('verificationprogress')
+    validation = chain.get('bootstrap_validation', {})
+    finalization = chain.get('finalization_hold', {})
+    if (type(height) is not int or height < 3126937 or chain.get('headers') != height
+            or header.get('height') != height or header.get('hash') != chain.get('bestblockhash')
+            or type(progress) not in (float, int) or not math.isfinite(progress) or not 0.9999 <= progress <= 1.000001
+            or chain.get('chain') != 'main' or chain.get('initialblockdownload', False)
+            or validation.get('state') not in ('disabled', 'validated') or validation.get('tip_hold') is not False
+            or finalization.get('held') is not False
+            or type(header.get('time')) not in (int, float) or not math.isfinite(header['time'])
+            or not -300 <= now - header['time'] <= 1800):
+        raise RuntimeError('Node is not current and validated enough to publish')
+
 def main():
     lock = open('/run/lock/zcl-richlist.lock', 'w')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     chain = rpc('getblockchaininfo')
     header = rpc('getblockheader', chain['bestblockhash'])
-    if chain['blocks'] < 3126937 or float(chain['verificationprogress']) < 0.9999 or abs(dt.datetime.now(dt.timezone.utc).timestamp() - header['time']) > 7200:
-        raise RuntimeError('Node is not current enough to publish')
+    require_current_chain(chain, header, dt.datetime.now(dt.timezone.utc).timestamp())
     # This RPC flushes the coin cache, then computes exact on-disk UTXO commitments.
     stats = rpc('gettxoutsetinfo')
     header = rpc('getblockheader', stats['bestblock'])
@@ -52,8 +67,9 @@ def main():
     snapshot = SNAPSHOTS / ('richlist-' + uuid.uuid4().hex)
     # Atomic filesystem snapshot; never copy a live LevelDB directory.
     subprocess.run(['btrfs', 'subvolume', 'snapshot', '-r', '/var/lib/zcl-data/node', str(snapshot)], check=True)
-    work = Path(tempfile.mkdtemp(prefix='zcl-richlist-', dir='/var/lib/zcl-data'))
+    work = None
     try:
+        work = Path(tempfile.mkdtemp(prefix='zcl-richlist-', dir='/var/lib/zcl-data'))
         os.chmod(work, 0o700)
         context_path = work / 'context.json'
         context_path.write_text(json.dumps(context))
@@ -71,10 +87,18 @@ def main():
         temp_public = PUBLIC.with_suffix('.json.new')
         shutil.copyfile(artifact, temp_public)
         os.chmod(temp_public, 0o644)
+        with temp_public.open('rb') as stream:
+            os.fsync(stream.fileno())
         os.replace(temp_public, PUBLIC)
+        directory = os.open(PUBLIC.parent, os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
         print(json.dumps({'published': True, 'height': context['height'], 'hash': context['hash'], 'bytes': PUBLIC.stat().st_size}))
     finally:
-        shutil.rmtree(work)
+        if work is not None:
+            shutil.rmtree(work)
         subprocess.run(['btrfs', 'subvolume', 'delete', str(snapshot)], check=True)
 
 if __name__ == '__main__':
