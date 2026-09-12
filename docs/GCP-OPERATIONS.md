@@ -125,7 +125,7 @@ vCPUs do not mean two sustained full cores. Refer to Google's
 [price table](https://cloud.google.com/products/compute/pricing/general-purpose)
 and [E2 machine specifications](https://docs.cloud.google.com/compute/docs/general-purpose-machines).
 
-## Public launch validation
+## Initial public launch validation
 
 Public mining opened at 15:04 UTC on September 12, 2026. The native deployment
 was `7695f54`, with binary SHA-256
@@ -153,3 +153,72 @@ ready node, worker and payment gates. No VM GPU or daemon mining was enabled.
 Browser counts show work performed during that session; database share rows are
 aggregates, not one row per protocol event. Accepted work is an allocation weight
 for a future round reward, not a wallet balance or a guaranteed payout.
+
+## Final repaired deployment and public reopening
+
+Public admission was temporarily closed after the initial launch to repair job
+delivery and a compact-target calculation, and to install a fresh read-only node
+readiness diagnostic. It reopened at 15:57 UTC on September 12, 2026. The final
+native source is `8de5dbf8b4bb32afb5d37a83590d703e3c3be45c`, with binary SHA-256
+`8b0546bfebd482e772211a6f413bc5e9ab34a60201e9dc34ce10947c69657ebd`.
+The previous binary is retained at `/opt/zcl-pool/stratum.pre-8de5dbf`.
+
+Initial job selection now scans eligible jobs, and subsequent broadcasts reach
+direct ZCL miners with autoexchange disabled. ZCL candidate-block decisions use
+the complete 256-bit target, and compact-target projection no longer invokes an
+undefined shift. Production-code regression tests passed under ASan/UBSan,
+including old-code negative controls, 95 independently calculated target fixtures,
+a historical mainnet proof, and the actual block-submission branch with its RPC
+call intercepted. These checks do not claim a general audit of inherited code.
+
+The node daemon was built from upstream `v2.1.2-beta6` commit
+`14a83d510ffd109d3fa09bf74ebf8c28854a263f` plus the
+[read-only live-corroboration patch](../deploy/zcl/patches/README.md). Cloud Build
+`62a2f6b2-92bb-43ba-94d4-dec93e42ed54` completed successfully, including three
+compiled corroboration tests. The installed daemon SHA-256 is
+`28898a96572900e820e04368c97ee8b0fc21b6cbbc62ed92adcd13d1e74c3d9d`.
+The original official daemon remains at
+`/opt/zclassic/rollback/831b14cb794fb53a2e3d05a3143089799e725cf80da850168d271782101ac012/zclassicd`.
+The patch reports current peer corroboration without changing consensus,
+finalization, or the bootstrap hold. Pool and payout consumers strictly validate
+the live result against the current tip; an absent diagnostic retains the strict
+cached-hold fallback for an official-binary rollback.
+
+The final two-minute Mac WebGPU test ran from 15:51:47 to 15:53:48 UTC against
+this node and final native build. It received three jobs, generated 20 valid
+proofs, and submitted 7 target-qualified shares: **7 accepted, zero rejected**.
+The worker stopped at its time limit. Together with the earlier successful run,
+21 accepted shares contributed total difficulty weight `0.0008203125`, all
+attributed to the expected operator miner account. The final production audit
+verified the 0.8% owner fee recipient, zero accounting holds, zero pending payment
+batches, and no mainnet blocks or confirmed miner/operator payments.
+
+The owner-only browser override was removed, Stratum listened on
+`0.0.0.0:2192`, the TCP 2192 ingress rule was enabled, and the root-owned launch
+marker was restored. External native and normal public WebSocket checks both
+received authorization, target and job messages. A separate visitor address also
+received work; those handshake checks did not mine or receive payments. Public
+pool and miner pages passed English/Spanish readiness, form, language-link and
+responsive layout checks at widths from 320 to 1440 pixels without browser or
+HTTP errors. The UI remained idle until an explicit start.
+
+At 16:02:57 UTC the node reported height and headers 3,248,200, live corroboration
+from three independent outbound peers, no bootstrap hold, and a 24 ms RPC response.
+Node, Stratum, accounting, payout, cookie and rich-list schedules were active.
+The fresh pool feed reported open admission with its readiness and payment gates
+enabled. This remains a CPU-only pool host; the Mac test is stopped.
+
+The final full rich-list export completed successfully at 15:59:45 UTC:
+
+| Field | Verified publication |
+| --- | --- |
+| Block height | 3,248,197 |
+| Block hash | `00000a6e5292fe090a2757a9487a4301d887f782de7f140cc6c2c352c2bfecb0` |
+| Full chainstate commitment | `447bb330e8520adca69eab81ed62a93334d5af24ca2e95fbc4a6a4f168ca1387` |
+| Transparent addresses | 64,481 |
+| UTXOs | 1,346,377 |
+| Total transparent zatoshis | `1043892809226092` |
+| JSON bytes | 14,491,404 |
+
+The exporter removed its temporary private snapshot and recovered database after
+atomic publication. The normal two-hour schedule remains enabled.

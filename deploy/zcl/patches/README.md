@@ -60,8 +60,33 @@ leaves the active tip, finalized pointer, and all cached hold fields unchanged.
 The existing core tests continue covering IBD, live-header provenance, ancestry,
 depth and fork rejection.
 
-`git apply --check` has passed against the pinned clean checkout. A complete
-node build and the compiled tests are required before deployment. This patch
-bundle does not install a node binary or change the running node. Deploying the
-node and consumers must be coordinated: strict consumers must not silently
-accept missing or malformed `live_corroboration` fields.
+## Verified build and installation — 2026-09-12
+
+`git apply --check` passed against the pinned clean checkout. Google Cloud Build
+`62a2f6b2-92bb-43ba-94d4-dec93e42ed54` completed with status `SUCCESS`, using
+Ubuntu 22.04 and the upstream commit above. The artifact bundle records the
+source and patch in `node-build-provenance.json`, changed source hashes in
+`PATCHED-SOURCES.sha256`, and output hashes in `SHA256SUMS`.
+
+| Artifact | SHA256 |
+| --- | --- |
+| Diagnostic patch | `30f7fc2b1ff0b3debcce32f507ae7a77caa52b65bfe63d1b87f121ac31614d2b` |
+| Built and installed `zclassicd` | `28898a96572900e820e04368c97ee8b0fc21b6cbbc62ed92adcd13d1e74c3d9d` |
+| Built `zclassic-cli` | `1e0264fa4daf6245f08bf94572a5d02e1f6970043428db259d66632ba44638c9` |
+| `corroboration-tests.log` | `5bf0cbb41ec56f3f15d0928c6232bba56e85b95744c7b33725c2e1ae58e794ca` |
+
+The compiled Boost run selected exactly three cases and reported no errors:
+
+- `finalization_peer_corroboration_gate`
+- `live_corroboration_tracks_peers_without_new_block`
+- `live_corroboration_does_not_mutate_finalization`
+
+This evidence covers those three cases; the full node test suite was not run.
+The daemon reports `v2.1.2-beta6-unk`, so the pinned source, patch, and artifact
+hashes above identify this build more precisely than its version string.
+
+The verified daemon was installed at `/opt/zclassic/zclassicd` on the pool VM.
+The original release binary is preserved for rollback at
+`/opt/zclassic/rollback/831b14cb794fb53a2e3d05a3143089799e725cf80da850168d271782101ac012/zclassicd`.
+The node and pool consumers were deployed together; this patch remains a
+read-only diagnostic change and does not alter finalization or consensus.

@@ -33,15 +33,20 @@ hashpower, install a GPU, or enable daemon mining (`-gen=0`).
 `deploy/zcl/install-node.sh` installs the pinned, checksum-verified official
 v2.1.2-beta6 daemon and a restricted systemd service. Runtime wallet files,
 credentials, backups, and database data belong outside this repository.
+The live node additionally uses the reviewed, read-only
+[corroboration diagnostic patch](deploy/zcl/patches/README.md), built against
+that pinned upstream release; its consensus and finalization rules are unchanged.
 
 The selected launch fee is **0.8%** (80 basis points); miners retain 99.2% of
 allocated rewards. This is 20% below a 1% fee, using zpool’s published
 Equihash 192,7 fee as a named benchmark, not a universal competitor claim.
 The miner payout threshold is **0.05 ZCL**. Rewards are proportional to accepted
-work in each block round; the operator reserve covers transaction fees. The launch
-test accepted 14 real GPU shares and verified their account attribution and the
-configured operator fee recipient. It found no mainnet block and made no mainnet
-payment. Protected-Sapling payout and reconciliation paths were tested separately
+work in each block round; the operator reserve covers transaction fees. The final
+two-minute laptop GPU test accepted 7 shares with zero rejects across three jobs.
+Together with an earlier successful test, 21 accepted shares were credited to the
+operator's miner account, and the configured fee recipient was verified. No
+mainnet block was found and no mainnet payment occurred. Protected-Sapling payout
+and reconciliation paths were tested separately
 on regtest; see [payout accounting](docs/ZCL-PAYOUTS.md).
 
 See [UPSTREAM-README.md](UPSTREAM-README.md) for the inherited application's
