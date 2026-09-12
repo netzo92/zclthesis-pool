@@ -89,6 +89,12 @@ native TCP 2192 and changing its bind address require the same checks. A bounded
 private owner test can use the bridge's explicit owner-address gate while public
 mining stays closed.
 
+The bilingual public status page reveals the Stratum connection only when both
+node and pool observations are fresh (at most three minutes old, allowing at most
+five minutes of forward clock skew), the node is current, and the pool reports
+the configured 0.8% fee and open admission. Missing or stale feeds close the
+display. It documents round-proportional rewards and the 0.05 ZCL payout minimum.
+
 The pool may find no mainnet block during validation. Regtest proves the tested
 accounting and protected-Sapling payout paths; it does not establish that a
 mainnet reward or payment occurred. Preserve this distinction in launch copy.
