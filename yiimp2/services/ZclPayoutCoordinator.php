@@ -25,9 +25,21 @@ final class ZclPayoutCoordinator
             'network' => 'main', 'minimum_zat' => 5000000, 'fee_zat' => 10000,
             'confirmations' => 6, 'coinbase_confirmations' => 101,
             'max_recipients' => 50, 'shield_limit' => 50,
+            'operator_enabled' => false, 'operator_taddress' => null,
+            'operator_reserve_zat' => 1000000, 'operator_minimum_zat' => 100000,
         ];
         foreach (['pool_taddress', 'pool_zaddress'] as $key) {
             if (!is_string($this->config[$key] ?? null) || strlen($this->config[$key]) < 20) throw new RuntimeException('Pool wallet addresses must be configured');
+        }
+        foreach (['minimum_zat','fee_zat','confirmations','coinbase_confirmations','max_recipients','shield_limit'] as $key) {
+            if (!is_int($this->config[$key])) throw new RuntimeException('Payout limits require exact integer values');
+        }
+        if ($this->config['operator_enabled'] !== false && $this->config['operator_enabled'] !== true) throw new RuntimeException('Operator remittance requires an explicit boolean');
+        if ($this->config['operator_enabled'] && (!is_string($this->config['operator_taddress']) || strlen($this->config['operator_taddress']) < 20
+            || $this->config['operator_taddress'] === $this->config['pool_taddress']
+            || !is_int($this->config['operator_reserve_zat']) || $this->config['operator_reserve_zat'] < 1000000 || $this->config['operator_reserve_zat'] > ZclAmount::MAX
+            || !is_int($this->config['operator_minimum_zat']) || $this->config['operator_minimum_zat'] < 100000 || $this->config['operator_minimum_zat'] > ZclAmount::MAX)) {
+            throw new RuntimeException('Unsafe operator fee configuration');
         }
         if (!in_array($this->config['network'], ['main', 'test', 'regtest'], true)
             || $this->config['confirmations'] < 6 || $this->config['coinbase_confirmations'] < 101
@@ -66,7 +78,9 @@ final class ZclPayoutCoordinator
             $chain = $this->call('getblockchaininfo');
             if (($chain['chain'] ?? '') !== $this->config['network']) throw new RuntimeException('Unexpected wallet network');
             if (($chain['initialblockdownload'] ?? false) || ($chain['verificationprogress'] ?? 0) < 0.9999
-                || !isset($chain['blocks'], $chain['headers']) || $chain['blocks'] !== $chain['headers']) return 'syncing';
+                || !isset($chain['blocks'], $chain['headers']) || $chain['blocks'] !== $chain['headers']
+                || ($chain['bootstrap_validation']['tip_hold'] ?? false) || ($chain['finalization_hold']['held'] ?? false)) return 'syncing';
+            if ($this->config['operator_enabled'] && !$this->ledger->auditOperatorCredits()) return 'accounting-held';
             if (!$batch) {
                 foreach ($this->ledger->recentConfirmedSends() as $txid) {
                     $tx = $this->call('gettransaction', [$txid]);
@@ -76,6 +90,13 @@ final class ZclPayoutCoordinator
                     }
                 }
                 $batch = $this->ledger->reserve($this->config);
+                if (!$batch && $this->config['operator_enabled']) {
+                    $this->ledger->creditMatureOperatorFees();
+                    // Only an already-confirmed shielded surplus can fund an
+                    // operator transfer. Miner batches retain priority.
+                    $available = ZclAmount::parse($this->call('z_getbalance', [$this->config['pool_zaddress'], $this->config['confirmations']]));
+                    $batch = $this->ledger->reserveOperator($this->config, $available);
+                }
                 if (!$batch) return 'idle';
             }
             switch ($batch['state']) {
@@ -110,6 +131,16 @@ final class ZclPayoutCoordinator
         }
         $available = ZclAmount::parse($this->call('z_getbalance', [$cfg['pool_zaddress'], $cfg['confirmations']]));
         $fee = (float) ZclAmount::decimal($cfg['fee_zat']);
+        if (($batch['purpose'] ?? 'miners') === 'operator') {
+            if (!$this->ledger->canSendOperator($batch, $available)) {
+                $this->ledger->cancelUnsentOperator($batch);
+                return 'operator-waiting-for-surplus';
+            }
+            return $this->submit($batch, 'send', 'z_sendmany', [$cfg['pool_zaddress'], [
+                ['address' => $batch['operator_address'], 'amount' => ZclAmount::decimal((int) $batch['amount_zat'])],
+            ], $cfg['confirmations'], $fee], $available);
+        }
+
         if ($available >= (int) $batch['amount_zat'] + $cfg['fee_zat']) {
             $recipients = array_map(static function ($item) {
                 // ZCL AmountFromValue explicitly accepts strings; this preserves
@@ -134,9 +165,9 @@ final class ZclPayoutCoordinator
         return $this->submit($batch, 'shield', 'z_shieldcoinbase', [$cfg['pool_taddress'], $cfg['pool_zaddress'], $fee, $cfg['shield_limit']]);
     }
 
-    private function submit(array $batch, string $kind, string $method, array $params): string
+    private function submit(array $batch, string $kind, string $method, array $params, ?int $shieldedAvailable = null): string
     {
-        $id = $this->ledger->prepareOperation($batch, $kind, ['method' => $method, 'params' => $params]);
+        $id = $this->ledger->prepareOperation($batch, $kind, ['method' => $method, 'params' => $params], $shieldedAvailable);
         try {
             $result = $this->call($method, $params);
             $opid = $kind === 'shield' ? ($result['opid'] ?? null) : $result;

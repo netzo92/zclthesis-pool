@@ -45,7 +45,7 @@ if (($argv[1] ?? '') === '--allocate') {
     (new Ledger($db))->allocate(1, 1, false, '0');
     exit(0);
 }
-foreach (['zcl_reward_rounds', 'zcl_accounting_holds', 'earnings', 'shares', 'blocks', 'accounts', 'coins'] as $table) {
+foreach (['zcl_operator_credits', 'zcl_reward_rounds', 'zcl_accounting_holds', 'earnings', 'shares', 'blocks', 'accounts', 'coins'] as $table) {
     $db->exec("DROP TABLE IF EXISTS {$table}");
 }
 $db->exec("CREATE TABLE coins (id INT PRIMARY KEY, symbol VARCHAR(16), algo VARCHAR(16), auto_exchange TINYINT) ENGINE=InnoDB;
@@ -57,9 +57,14 @@ CREATE TABLE shares (id BIGINT PRIMARY KEY, userid INT, coinid INT, algo VARCHAR
 CREATE TABLE earnings (id INT AUTO_INCREMENT PRIMARY KEY, userid INT, coinid INT, blockid INT, create_time INT,
  amount DOUBLE, price DOUBLE, status INT, mature_time INT, UNIQUE KEY user_block(userid,blockid)) ENGINE=InnoDB;");
 $db->exec(file_get_contents(__DIR__ . '/../../sql/2026-09-11-zcl-reward-ledger.sql'));
+$operatorMigration = file_get_contents(__DIR__ . '/../../sql/2026-09-13-zcl-operator-fees.sql');
+preg_match('/ALTER TABLE zcl_reward_rounds[^;]+;/', $operatorMigration, $feeSchema);
+preg_match('/CREATE TABLE zcl_operator_credits[^;]+;/', $operatorMigration, $creditSchema);
+$db->exec($feeSchema[0]);
+$db->exec($creditSchema[0]);
 
 function fixture(PDO $db): void {
-    foreach (['zcl_reward_rounds', 'zcl_accounting_holds', 'earnings', 'shares', 'blocks', 'accounts', 'coins'] as $table) {
+    foreach (['zcl_operator_credits', 'zcl_reward_rounds', 'zcl_accounting_holds', 'earnings', 'shares', 'blocks', 'accounts', 'coins'] as $table) {
         $db->exec("DELETE FROM {$table}");
     }
     $db->exec("INSERT INTO coins VALUES (1,'ZCL','equihash192',0),(2,'OTHER','equihash192',0);
@@ -108,6 +113,7 @@ $db->exec('UPDATE accounts SET donation=10 WHERE id=1');
 $ledger->allocate(1, 1, false, '1');
 $round = $db->query('SELECT * FROM zcl_reward_rounds')->fetch(PDO::FETCH_ASSOC);
 check(bcadd($round['credited_sat'], $round['retained_sat'], 0) === $round['reward_sat'], 'Fees and donations remain fully attributed');
+check($round['fee_sat'] === '1000000' && bccomp($round['retained_sat'], $round['fee_sat']) > 0, 'Exact operator fee excludes miner donations');
 echo "PASS native coin enforcement and fee conservation\n";
 
 fixture($db);
@@ -147,6 +153,16 @@ $ledger->transition(1, 1, 'generate', 103);
 check((int) scalar($db, 'SELECT status FROM earnings WHERE userid=1') === 2, 'Reinstatement does not duplicate credits');
 check((int) scalar($db, 'SELECT COUNT(*) FROM zcl_accounting_holds') === 1, 'Hold needs explicit reconciliation');
 echo "PASS maturity, reorg hold and evidence preservation\n";
+
+fixture($db);
+$ledger->allocate(1, 1, false, '0.8');
+$ledger->transition(1, 1, 'generate', 101);
+$db->exec('INSERT INTO zcl_operator_credits(block_id,coin_id,amount_zat,created_at) VALUES(1,1,800000,1)');
+$ledger->transition(1, 1, 'generate', 100);
+check((int) scalar($db, 'SELECT COUNT(*) FROM zcl_accounting_holds') === 1, 'Operator-credit reorg holds before miner credits');
+check((int) scalar($db, 'SELECT COUNT(*) FROM zcl_operator_credits') === 1, 'Operator credit evidence retained');
+echo "PASS operator fee source reorg holds before miner balances are cleared\n";
+
 
 fixture($db);
 $db->beginTransaction();

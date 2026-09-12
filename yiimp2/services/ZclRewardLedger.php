@@ -88,7 +88,8 @@ final class ZclRewardLedger
                 ->fetch(PDO::FETCH_ASSOC);
             if (!$block) throw new RuntimeException('Missing block for accounting transition');
             $credited = $this->query('SELECT id FROM earnings WHERE blockid=? AND status=2 FOR UPDATE', [$blockId])->fetchColumn();
-            if ($credited && ($category !== 'generate' || $confirmations < 101)) {
+            $operatorCredited = $this->query('SELECT block_id FROM zcl_operator_credits WHERE block_id=? AND coin_id=? AND amount_zat>0 FOR UPDATE', [$blockId, $coinId])->fetchColumn();
+            if (($credited || $operatorCredited) && ($category !== 'generate' || $confirmations < 101)) {
                 $this->query('INSERT INTO zcl_accounting_holds (coin_id,reason,created_at) VALUES (?,?,?)
                     ON DUPLICATE KEY UPDATE reason=VALUES(reason)',
                     [$coinId, "Reorg after crediting block {$blockId}; reconciliation required", time()]);
@@ -216,9 +217,9 @@ final class ZclRewardLedger
             $effort = (float) $block['difficulty'] > 0 ? (float) $difficulty * 100 / (float) $block['difficulty'] : null;
             $this->query('UPDATE blocks SET solo=?, effort=? WHERE id=?', [(int) $solo, $effort, $blockId]);
             $this->query('INSERT INTO zcl_reward_rounds
-                (block_id,coin_id,blockhash,reward_sat,credited_sat,retained_sat,share_count,last_share_id,difficulty,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?)', [$blockId, $coinId, $block['blockhash'], $reward, $credited,
-                bcsub($reward, $credited, 0), count($shares), $lastId, $difficulty, $now]);
+                (block_id,coin_id,blockhash,reward_sat,credited_sat,retained_sat,fee_sat,share_count,last_share_id,difficulty,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)', [$blockId, $coinId, $block['blockhash'], $reward, $credited,
+                bcsub($reward, $credited, 0), $feeTotal, count($shares), $lastId, $difficulty, $now]);
             $this->db->commit();
             return true;
         } catch (Throwable $error) {

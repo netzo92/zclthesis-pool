@@ -32,6 +32,14 @@ final class ZclPayoutService
             'pool_zaddress' => YIIMP_ZCL_POOL_ZADDRESS,
             'minimum_zat' => ZclAmount::parse(defined('YIIMP_ZCL_PAYOUT_MIN') ? YIIMP_ZCL_PAYOUT_MIN : '0.05'),
         ];
+        if (defined('YIIMP_ZCL_OPERATOR_PAYMENTS_ENABLED') && YIIMP_ZCL_OPERATOR_PAYMENTS_ENABLED === true) {
+            if (!defined('YIIMP_ZCL_OPERATOR_TADDRESS')) throw new \RuntimeException('Missing private operator recipient');
+            $config += [
+                'operator_enabled' => true,
+                'operator_taddress' => YIIMP_ZCL_OPERATOR_TADDRESS,
+                'operator_reserve_zat' => ZclAmount::parse(defined('YIIMP_ZCL_OPERATOR_RESERVE') ? YIIMP_ZCL_OPERATOR_RESERVE : '0.01'),
+            ];
+        }
         $rpc = new ZclWalletRPC((string) $coin->rpchost, (int) $coin->rpcport, (string) $coin->rpcuser, (string) $coin->rpcpasswd);
         return (new ZclPayoutCoordinator(self::ledger($coin), $rpc, $config, true))->tick();
     }

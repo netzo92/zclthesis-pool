@@ -71,6 +71,50 @@ foreach($ops as $op) {
         check(count($decoded['vShieldedSpend']??[])>0,'Recipient transaction did not spend Sapling notes');
     }
 }
-$report=['passed'=>true,'scope'=>'v2.1.2-beta6 protected-coinbase Sapling regtest, synthetic funds only','network'=>'regtest','height'=>testRpc('getblockcount'),'recipients'=>count($recipients),'amount_each'=>'0.09920000','operations'=>$ops,'phases'=>$phases];
+// A mature round supplies exactly its 0.8% fee. The unpaid remainder is
+// deliberately locked: owner remittance must leave those miner claims intact.
+$gross=ZclAmount::parse($coinbase['amount']);
+$feeCredit=intdiv($gross*80,10000);
+$minerCredit=$gross-$feeCredit;
+$remainingMiner=$minerCredit-19840000;
+check($remainingMiner>0,'Synthetic reward too small for reserve test');
+$fundingTx=testRpc('gettransaction',$coinbase['txid']);
+$fundingHeader=testRpc('getblockheader',$fundingTx['blockhash']);
+$stmt=$db->prepare('INSERT INTO accounts(id,coinid,username,balance,is_locked) VALUES(3,1,?,?,1)');
+$stmt->execute([testRpc('getnewaddress'),ZclAmount::decimal($remainingMiner)]);
+$stmt=$db->prepare("INSERT INTO blocks(id,coin_id,category,confirmations,blockhash) VALUES(1,1,'generate',?,?)");
+$stmt->execute([$fundingTx['confirmations'],$fundingTx['blockhash']]);
+$stmt=$db->prepare('INSERT INTO zcl_reward_rounds(block_id,coin_id,blockhash,reward_sat,credited_sat,retained_sat,fee_sat) VALUES(1,1,?,?,?,?,?)');
+$stmt->execute([$fundingTx['blockhash'],$gross,$minerCredit,$feeCredit,$feeCredit]);
+$stmt=$db->prepare('INSERT INTO earnings(id,userid,coinid,blockid,amount,status,price,mature_time) VALUES(?,?,1,1,?,2,0,1)');
+$stmt->execute([1,1,'0.0992']);$stmt->execute([2,2,'0.0992']);$stmt->execute([3,3,ZclAmount::decimal($remainingMiner)]);
+$owner=testRpc('getnewaddress');
+$operatorWorker=new ZclPayoutCoordinator($ledger,$rpc,['network'=>'regtest','pool_taddress'=>$poolT,'pool_zaddress'=>$poolZ,
+    'operator_enabled'=>true,'operator_taddress'=>$owner,'operator_reserve_zat'=>1000000],true);
+$operatorComplete=false;$operatorPhases=[];
+for($i=0;$i<240;$i++) {
+    $phase=$operatorWorker->tick();$operatorPhases[]=$phase;
+    if($phase==='held')throw new RuntimeException('Operator regtest held');
+    $active=$ledger->active();
+    if($active && $active['state']==='confirming') {
+        $txid=$active['operation']['txid'];
+        if(!isset($confirmed[$txid])) {testRpc('generate',6);$confirmed[$txid]=true;}
+    }
+    if($phase==='complete') {$operatorComplete=true;break;}
+    usleep(250000);
+}
+check($operatorComplete,'Operator regtest did not complete');
+$operatorAmount=$feeCredit-30000-1000000; // shield + miner send + owner send, plus reserve.
+check(ZclAmount::parse(testRpc('getreceivedbyaddress',$owner,6))===$operatorAmount,'Owner received a wrong amount');
+check(balance($db,3)===$remainingMiner,'Owner remittance consumed a locked miner balance');
+$remainingShielded=ZclAmount::parse(testRpc('z_getbalance',$poolZ,6));
+check($remainingShielded===$remainingMiner+1000000,'Owner remittance did not preserve the exact reserve and miner backing');
+check($operatorWorker->tick()==='idle','Operator remittance replayed');
+check(scalar($db,'SELECT COUNT(*) FROM zcl_payment_operations')==3,'Unexpected duplicate or extra shielding operation');
+$operatorOp=$db->query("SELECT O.opid,O.txid,O.state,O.network_fee_zat FROM zcl_payment_operations O JOIN zcl_payment_batches B ON B.id=O.batch_id WHERE B.purpose='operator'")->fetch(PDO::FETCH_ASSOC);
+$operatorTx=testRpc('gettransaction',$operatorOp['txid']);
+check(count(testRpc('decoderawtransaction',$operatorTx['hex'])['vShieldedSpend']??[])>0,'Operator transfer did not use confirmed Sapling funds');
+
+$report=['passed'=>true,'scope'=>'v2.1.2-beta6 protected-coinbase Sapling regtest, synthetic funds only','network'=>'regtest','height'=>testRpc('getblockcount'),'recipients'=>count($recipients),'amount_each'=>'0.09920000','operations'=>$ops,'phases'=>$phases,'operator'=>['amount'=>ZclAmount::decimal($operatorAmount),'reserve'=>'0.01000000','locked_miner_balance'=>ZclAmount::decimal($remainingMiner),'remaining_shielded'=>ZclAmount::decimal($remainingShielded),'operation'=>$operatorOp,'phases'=>$operatorPhases]];
 file_put_contents($dir.'/report.json',json_encode($report,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR)."\n");
 echo json_encode($report,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR)."\n";

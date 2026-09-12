@@ -10,7 +10,8 @@ network fees come from the pool reserve, without an additional miner deduction.
 ## Deployment
 
 Apply the reward-ledger migration first, then
-`sql/2026-09-12-zcl-payout-ledger.sql`, once, before accepting public shares. These
+`sql/2026-09-12-zcl-payout-ledger.sql`, then
+`sql/2026-09-13-zcl-operator-fees.sql`, once, before accepting public shares. These
 migrations target a new empty pool. Do not convert an existing financial ledger
 from floating point without reconciliation and a backup.
 
@@ -89,6 +90,52 @@ If the pool reserve cannot cover network fees, the batch waits for funding.
 No recipient amounts are halved and no network fee is silently subtracted from
 miner credit. The ledger retains all payout and operation records.
 
+## Operator fee remittance
+
+An additional strict boolean enables remittance through the same coordinator:
+
+```php
+define('YIIMP_ZCL_OPERATOR_PAYMENTS_ENABLED', true);
+define('YIIMP_ZCL_OPERATOR_TADDRESS', 'PRIVATE_OPERATOR_RECIPIENT');
+define('YIIMP_ZCL_OPERATOR_RESERVE', '0.01');
+```
+
+Keep the actual recipient only in private server configuration. The destination
+is frozen in the private batch journal before submitting a transaction. The
+owner's own mining rewards use the ordinary miner account and payout flow; fee
+remittance never replaces or reduces that account's earned balance.
+
+The allocator records `fee_sat` separately from donations and total retained
+amounts. Each known fee from a `generate` block with at least 101 confirmations
+is credited once in `zcl_operator_credits`. Earlier rounds with `fee_sat=NULL`
+are unclaimable until reconciled. A reorg of a credited source raises a durable
+accounting hold, even if the miner earnings have not yet been cleared.
+
+Miner payouts have priority. When no miner balance is payable, an owner-only
+batch may remit at least 0.001 ZCL from already-confirmed Sapling funds. It never
+starts another shielding transaction for the owner. The amount is capped by
+both of these independently checked limits:
+
+- Mature fee credits, less every previous operator reservation/payment, all
+  journaled network fees, the new send's network fee, and the 0.01 ZCL reserve.
+- Confirmed Sapling funds, less all unpaid miner account balances (including
+  locked and below-threshold accounts), pending/immature earnings, unconfirmed
+  payouts, the new send's fee, and the same reserve.
+
+Network costs are recorded at intent creation, before the wallet RPC. Unknown
+and held operations retain their reserved cost. Unpriced historical operations
+block owner remittance until reviewed. Donations and unexplained wallet deposits
+cannot increase the mature-fee ceiling. The reserve is a minimum operating float,
+not a guarantee that future network costs will always be covered.
+
+Both limits are checked again under the coin lock immediately before an owner
+send intent. If new miner claims remove the surplus before any wallet mutation
+has been attempted, the unsent owner reservation is cancelled so it cannot
+block miners. Once an intent exists it cannot be cancelled or retried. Owner
+transfers use the same operation-ID, transaction-ID, six-confirmation, failure,
+and reorg rules as miner payments. Changing the recipient or reserve during an
+active batch holds it for reconciliation.
+
 ## Unknown outcomes and recovery
 
 `held` means operator reconciliation is required. A timeout can happen after the
@@ -159,6 +206,16 @@ synthetic chain, and two recipients receiving exactly 0.09920000 each. The test
 also rejected direct protected-coinbase payment, verified the Sapling spend,
 checked no replay, and stopped its isolated daemon. This is real-daemon regtest
 evidence; no mainnet coin was sent by this test.
+
+The [operator-remittance report](../tests/payout/evidence/operator-fee-regtest.json)
+adds a second actual-daemon run on 2026-09-12. After the two miner payments, an
+owner-only Sapling transfer paid exactly **0.08970000 ZCL**, leaving
+**12.20160000 ZCL** backing a locked miner account plus the **0.01000000 ZCL**
+reserve. Three explicit network fees were charged to the operator portion. All
+three operations confirmed, the synthetic chain ended at height 119, and a
+subsequent tick did not replay either miner or operator transfers. SQLite and
+real InnoDB tests also cover source-fee maturity, donations, unknown historical
+costs, accounting reorg holds, transaction rollback, and concurrent owner workers.
 
 ## Release sources
 
