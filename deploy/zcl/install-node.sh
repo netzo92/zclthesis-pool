@@ -18,6 +18,7 @@ cat > /etc/systemd/system/zclassic.service <<'UNIT'
 Description=Zclassic full node for ZCL Thesis pool
 After=network-online.target
 Wants=network-online.target
+RequiresMountsFor=/var/lib/zclassic
 
 [Service]
 Type=simple
