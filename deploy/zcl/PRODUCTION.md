@@ -134,3 +134,19 @@ display. It documents round-proportional rewards and the 0.05 ZCL payout minimum
 The pool may find no mainnet block during validation. Regtest proves the tested
 accounting and protected-Sapling payout paths; it does not establish that a
 mainnet reward or payment occurred. Preserve this distinction in launch copy.
+
+
+## Private website analytics
+
+The thesis repository now owns a separate lightweight Python analytics service,
+`zcl-analytics.service`, under `/opt/zcl-analytics`, with private state under
+`/var/lib/zcl-analytics`. It runs as its own unprivileged user and has no wallet,
+RPC or pool database access. See `netzo92/zclthesis` → `analytics/README.md`.
+
+Caddy permits only `POST /api/analytics/event` to loopback collector port 8792;
+the collector requires a server relay credential from the Cloud Run website and
+validates event categories/identifiers. It exposes no analytics reads publicly.
+The read-only dashboard on loopback8091 is available through the existing operator
+IAP SSH connection (Mac local18091). No firewall port or public admin route was
+added. Existing pool admin8090, mining ports, payouts and fees are independent.
+Credential files and visitor data remain outside the public repositories.

@@ -5,6 +5,17 @@ pool.zclthesis.com {
     Referrer-Policy strict-origin-when-cross-origin
     Content-Security-Policy "default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' wss://pool.zclthesis.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
   }
+  @analyticsEvent {
+    method POST
+    path /api/analytics/event
+  }
+  handle @analyticsEvent {
+    request_body {
+      max_size 2KB
+    }
+    rewrite * /event
+    reverse_proxy 127.0.0.1:8792
+  }
   @read method GET HEAD
   handle @read {
     handle /ws {
