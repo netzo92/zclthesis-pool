@@ -45,8 +45,8 @@ function BackendQuickClean()
 			id not in (select blockid from earnings where coinid=$coin->id) and id<$id");
 	}
 
-	dborun("delete from earnings where blockid in (select id from blocks where category='orphan')");
-	dborun("delete from earnings where blockid not in (select id from blocks)");
+	dborun("delete from earnings where coinid NOT IN (SELECT id FROM coins WHERE symbol='ZCL') AND blockid in (select id from blocks where category='orphan')");
+	dborun("delete from earnings where coinid NOT IN (SELECT id FROM coins WHERE symbol='ZCL') AND blockid not in (select id from blocks)");
 	dborun("UPDATE blocks SET amount=0 WHERE category='orphan' AND amount>0");
 }
 
@@ -148,7 +148,7 @@ function BackendCleanDatabase()
 	marketHistoryPrune();
 
 	$delay = time() - 60*24*60*60;
-	dborun("DELETE from blocks where time<$delay");
+	dborun("DELETE from blocks where time<$delay AND coin_id NOT IN (SELECT id FROM coins WHERE symbol='ZCL')");
 	dborun("delete from hashstats where time<$delay");
 	// Preserve the payout ledger, including unknown broadcast outcomes.
 	dborun("delete from rentertxs where time<$delay");
@@ -174,7 +174,7 @@ function BackendCleanDatabase()
 	consolidateOldShares();
 
 	$delay = time() - 12*60*60;
-	dborun("delete from earnings where status=2 and mature_time<$delay");
+	dborun("delete from earnings where status=2 and mature_time<$delay AND coinid NOT IN (SELECT id FROM coins WHERE symbol='ZCL')");
 }
 
 function BackendOptimizeTables()

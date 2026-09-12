@@ -89,6 +89,11 @@ class PayoutCommand extends CConsoleCommand
 			return 0;
 		}
 
+        if ($fixit && strtoupper((string) $coin->symbol) === 'ZCL') {
+            echo "ZCL payout repair requires the durable operation ledger; guessed balance corrections are blocked.\n";
+            return 0;
+        }
+
 		// failed payouts, generally related to bad wallet 'accounts' balances (VNL)
 		$dbPayouts = new db_payouts;
 		$min_payout = max($coin->txfee, floatval(YAAMP_PAYMENTS_MINI));

@@ -303,8 +303,17 @@ class PaymentService
             ? time() - $paymentFreq
             : time() - (int) ($paymentFreq / 2);
 
+        // ZCL uses the transactional, maturity-checked ledger. Keep the legacy
+        // float/cross-coin path out of its accounts entirely.
+        $zclQuery = Coins::find()->where(['symbol' => 'ZCL']);
+        if ($coinId !== null) $zclQuery->andWhere(['id' => $coinId]);
+        foreach ($zclQuery->all() as $zclCoin) {
+            ZclPayoutService::ledger($zclCoin)->creditMatureEarnings($delay);
+        }
+
         $query = Earnings::find()
             ->where(['status' => 1])
+            ->andWhere(['not in', 'coinid', Coins::find()->select('id')->where(['symbol' => 'ZCL'])])
             ->andWhere(['<', 'mature_time', $delay]);
         if ($coinId !== null) {
             $query->andWhere(['coinid' => $coinId]);
@@ -400,8 +409,8 @@ class PaymentService
             }
         }
 
-        $db->createCommand("DELETE FROM earnings WHERE blockid IN (SELECT id FROM blocks WHERE category='orphan')")->execute();
-        $db->createCommand("DELETE FROM earnings WHERE blockid NOT IN (SELECT id FROM blocks)")->execute();
+        $db->createCommand("DELETE FROM earnings WHERE coinid NOT IN (SELECT id FROM coins WHERE symbol='ZCL') AND blockid IN (SELECT id FROM blocks WHERE category='orphan')")->execute();
+        $db->createCommand("DELETE FROM earnings WHERE coinid NOT IN (SELECT id FROM coins WHERE symbol='ZCL') AND blockid NOT IN (SELECT id FROM blocks)")->execute();
         $db->createCommand("UPDATE blocks SET amount=0 WHERE category='orphan' AND amount>0")->execute();
     }
 
@@ -419,7 +428,7 @@ class PaymentService
         $delay2  = time() - 2 * 24 * 3600;
 
         foreach ([
-            "DELETE FROM blocks WHERE time<{$delay60}",
+            "DELETE FROM blocks WHERE time<{$delay60} AND coin_id NOT IN (SELECT id FROM coins WHERE symbol='ZCL')",
             "DELETE FROM hashstats WHERE time<{$delay60}",
             "DELETE FROM rentertxs WHERE time<{$delay60}",
             "DELETE FROM shares WHERE time<{$delay60}",

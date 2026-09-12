@@ -12,7 +12,7 @@ function BackendClearEarnings($coinid = NULL)
 
 	$sqlFilter = $coinid ? " AND coinid=".intval($coinid) : '';
 	
-	$list = getdbolist('db_earnings', "status=1 AND mature_time<$delay $sqlFilter");
+	$list = getdbolist('db_earnings', "status=1 AND mature_time<$delay AND coinid NOT IN (SELECT id FROM coins WHERE symbol='ZCL') $sqlFilter");
 	
 	foreach($list as $earning)
 	{

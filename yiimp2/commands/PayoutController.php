@@ -26,6 +26,10 @@ class PayoutController extends Controller
     {
         $coin = Coins::find()->where(['symbol' => $symbol])->one();
         if (!$coin) { $this->stderr("wallet {$symbol} not found!\n"); return ExitCode::UNSPECIFIED_ERROR; }
+        if ($fixit === 'fixit' && strtoupper((string) $coin->symbol) === 'ZCL') {
+            $this->stderr("ZCL payout repair requires the durable operation ledger; guessed balance corrections are blocked.\n");
+            return ExitCode::UNSPECIFIED_ERROR;
+        }
 
         $db       = Yii::$app->db;
         $cu       = Yii::$app->ConversionUtils;
