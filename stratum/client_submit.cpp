@@ -1,6 +1,7 @@
 
 #include "stratum.h"
 #include "submit_validation.h"
+#include "submit_status.h"
 
 uint64_t lyra2z_height = 0;
 
@@ -483,10 +484,10 @@ bool dump_submit_debug(const char *title, YAAMP_CLIENT *client, YAAMP_JOB *job, 
 void client_submit_error(YAAMP_CLIENT *client, YAAMP_JOB *job, int id, const char *message, char *extranonce2, char *ntime, char *nonce)
 {
 //	if(job->templ->created+2 > time(NULL))
-	if(job && job->deleted)
-		client_send_result(client, "true");
-
-	else
+	if(!stratum_status::deleted_job(job && job->deleted,
+		job && job->coind ? job->coind->symbol : nullptr, g_equihash_wn, g_equihash_wk,
+		[client](int code, const char *reason) { client_send_error(client, code, reason); },
+		[client]() { client_send_result(client, "true"); }))
 	{
 		client_send_error(client, id, message);
 		share_add(client, job, false, extranonce2, ntime, nonce, 0, id, 0);
@@ -583,9 +584,11 @@ bool client_submit(YAAMP_CLIENT *client, json_value *json_params)
 		return true;
 	}
 
-	if(job->deleted)
+	if(stratum_status::deleted_job(job->deleted,
+		job->coind ? job->coind->symbol : nullptr, g_equihash_wn, g_equihash_wk,
+		[client](int code, const char *reason) { client_send_error(client, code, reason); },
+		[client]() { client_send_result(client, "true"); }))
 	{
-		client_send_result(client, "true");
 		object_unlock(job);
 
 		return true;

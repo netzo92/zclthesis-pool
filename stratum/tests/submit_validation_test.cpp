@@ -1,4 +1,5 @@
 #include "../submit_validation.h"
+#include "../submit_status.h"
 #include <cassert>
 #include <iostream>
 #include <string>
@@ -30,6 +31,24 @@ static bool eq(const std::vector<std::string> &values, int n = 192, int k = 7)
 
 int main()
 {
+    // A retired ZCL job used to report success although no share was credited.
+    // Exercise both reply callbacks, including unaffected live/non-ZCL work.
+    for (bool deleted : {false, true}) {
+        for (const char *symbol : {"ZCL", "ZEC", "OTHER", static_cast<const char *>(nullptr)}) {
+            for (int n : {192, 200}) {
+                int errors = 0, accepted = 0;
+                bool handled = stratum_status::deleted_job(deleted, symbol, n, 7,
+                    [&](int code, const char *reason) {
+                        ++errors; assert(code == 21); assert(std::string(reason) == "Stale job");
+                    }, [&]() { ++accepted; });
+                const bool stale_zcl = deleted && symbol && std::string(symbol) == "ZCL" && n == 192;
+                assert(handled == deleted);
+                assert(errors == (stale_zcl ? 1 : 0));
+                assert(accepted == (deleted && !stale_zcl ? 1 : 0));
+            }
+        }
+    }
+
     std::vector<std::string> good = {quoted("t1worker.rig"), quoted("1234"),
         quoted("01020304"), quoted(std::string(56, 'a')),
         quoted("fd9001" + std::string(800, 'b'))};
