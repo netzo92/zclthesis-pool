@@ -150,6 +150,16 @@ not establish mainnet mining performance or validate Equihash 192,7 Stratum
 shares. The live pool also needs its own synchronized node, verified block/share
 path, monitoring, backups, and the validated accounting migration.
 
+## Recorded real-daemon result
+
+The protected-Sapling regtest passed on the GCP pool VM on 2026-09-12 UTC.
+The [report](../tests/payout/evidence/protected-sapling-regtest.json) records
+release-binary hashes, both confirmed operation/transaction IDs, the 113-block
+synthetic chain, and two recipients receiving exactly 0.09920000 each. The test
+also rejected direct protected-coinbase payment, verified the Sapling spend,
+checked no replay, and stopped its isolated daemon. This is real-daemon regtest
+evidence; no mainnet coin was sent by this test.
+
 ## Release sources
 
 Behavior was checked against Zclassic v2.1.2-beta6:
