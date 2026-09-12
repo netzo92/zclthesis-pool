@@ -1,5 +1,6 @@
 
 #include "stratum.h"
+#include "job_selection.h"
 
 #define MAX_JOBAGE 120;
 
@@ -23,6 +24,10 @@ static bool job_assign_client(YAAMP_JOB *job, YAAMP_CLIENT *client, double maxha
 						(std::find(client->coins_mining_list.begin(), client->coins_mining_list.end(), job->coind->symbol2) != client->coins_mining_list.end());
 	bool coin_to_ignore = (std::find(client->coins_ignore_list.begin(), client->coins_ignore_list.end(), job->coind->symbol) != client->coins_ignore_list.end()) ||
 						  (std::find(client->coins_ignore_list.begin(), client->coins_ignore_list.end(), job->coind->symbol2) != client->coins_ignore_list.end());
+	const bool direct_zcl = job_is_direct_zcl(job);
+	// Apply payout-coin and explicit mc/nc restrictions even in the emergency
+	// maxhash=-1 pass, which historically relaxed cross-coin selection.
+	if (direct_zcl && !job_client_allows_direct_zcl(job, client)) return true;
 
 	if(!g_autoexchange && maxhash >= 0. && client->coinid != job->coind->id) {
 		//debuglog("prevent client %c on %s, not the right coin\n",
@@ -34,7 +39,7 @@ static bool job_assign_client(YAAMP_JOB *job, YAAMP_CLIENT *client, double maxha
 		return true;
 	}
 
-	if ((!job->coind->auto_exchange) && (!coin_to_mine)) {
+	if ((!job->coind->auto_exchange) && (!coin_to_mine) && !direct_zcl) {
 		return true;
 	}
 

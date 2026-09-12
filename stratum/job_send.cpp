@@ -1,5 +1,6 @@
 
 #include "stratum.h"
+#include "job_selection.h"
 #include "humanize_number.h"
 
 static int g_job_next_id = 0;
@@ -84,22 +85,31 @@ static void job_mining_notify_buffer(YAAMP_JOB *job, char *buffer)
 		job->id, templ->prevhash_be, templ->coinb1, templ->coinb2, templ->txmerkles, templ->version, templ->nbits, templ->ntime);
 }
 
-static YAAMP_JOB *job_get_last(int coinid)
+static YAAMP_JOB *job_get_last(int coinid, YAAMP_CLIENT *client)
 {
+	YAAMP_JOB *selected = NULL;
 	g_list_job.Enter();
-	for(CLI li = g_list_job.first; li; li = li->prev)
+	for(CLI li = g_list_job.first; li; li = li->next)
 	{
 		YAAMP_JOB *job = (YAAMP_JOB *)li->data;
 		if(!job_can_mine(job)) continue;
 		if(!job->coind) continue;
 		if(coinid > 0 && job->coind->id != coinid) continue;
-
-		g_list_job.Leave();
-		return job;
+		const bool direct_zcl = job_is_direct_zcl(job);
+		if(direct_zcl && !job_client_allows_direct_zcl(job, client)) continue;
+		// The list is sorted by profit, not creation order. Inspect all direct
+		// ZCL jobs to find the newest active template past any retired entries.
+		if(!selected) {
+			selected = job;
+			if(!direct_zcl) break;
+		}
+		else if(direct_zcl && job->id > selected->id) selected = job;
 	}
 
+	// Retain the selected object while the caller serializes and sends it.
+	object_lock(selected);
 	g_list_job.Leave();
-	return NULL;
+	return selected;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -111,10 +121,10 @@ void job_send_last(YAAMP_CLIENT *client)
 	if (!g_autoexchange)
 	{
 		// prefer user coin first (if available)
-		job = job_get_last(client->coinid);
+		job = job_get_last(client->coinid, client);
 	}
 
-	if(!job) job = job_get_last(0);
+	if(!job) job = job_get_last(0, client);
 
 	if(!job) return;
 
@@ -131,6 +141,7 @@ void job_send_last(YAAMP_CLIENT *client)
 	}
 
 	socket_send_raw(client->sock, buffer, strlen(buffer));
+	object_unlock(job);
 }
 
 void job_send_jobid(YAAMP_CLIENT *client, int jobid)
@@ -283,4 +294,3 @@ void job_broadcast(YAAMP_JOB *job)
 //
 //		maxhash = coind_nethash(job->coind)*coind_profitability(job->coind)/(g_current_algo->profit? g_current_algo->profit: 1);
 //	}
-
