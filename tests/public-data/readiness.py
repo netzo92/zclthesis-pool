@@ -4,6 +4,8 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 path = Path(__file__).resolve().parents[2] / 'deploy/zcl/publish-richlist.py'
 spec = importlib.util.spec_from_file_location('richlist_publisher', path)
@@ -11,6 +13,15 @@ publisher = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(publisher)
 
 class Readiness(unittest.TestCase):
+    def test_cli_scalar_hash_and_json_rpc(self):
+        with patch.object(publisher.subprocess, 'run', return_value=SimpleNamespace(stdout='a'*64+'\n')):
+            self.assertEqual(publisher.rpc('getblockhash', 3247730), 'a'*64)
+        for output in ['not a hash', 'a'*64+'\nwarning', '123']:
+            with patch.object(publisher.subprocess, 'run', return_value=SimpleNamespace(stdout=output)):
+                with self.assertRaises(ValueError): publisher.rpc('getblockhash', 3247730)
+        with patch.object(publisher.subprocess, 'run', return_value=SimpleNamespace(stdout='{"verificationprogress":0.99999}')):
+            self.assertEqual(publisher.rpc('getblockchaininfo')['verificationprogress'], Decimal('.99999'))
+
     def fixture(self):
         return {'chain': 'main', 'blocks': 3247730, 'headers': 3247730, 'bestblockhash': 'a'*64,
             'verificationprogress': 1, 'bootstrap_validation': {'state': 'disabled', 'tip_hold': False},

@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -19,6 +20,13 @@ SNAPSHOTS = Path('/var/lib/zcl-data/private-snapshots')
 
 def rpc(method, *args):
     result = subprocess.run(CLI + [method, *map(str, args)], capture_output=True, text=True, check=True, timeout=650)
+    # zclassic-cli writes string-valued RPC results without JSON quotes.
+    # Keep this exception restricted to the public hash read used for reorg checks.
+    if method == 'getblockhash':
+        value = result.stdout.strip()
+        if not re.fullmatch(r'[0-9a-f]{64}', value):
+            raise ValueError('CLI did not return a valid block hash')
+        return value
     return json.loads(result.stdout, parse_float=Decimal)
 
 def units(value):
