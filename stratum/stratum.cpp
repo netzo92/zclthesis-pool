@@ -19,6 +19,7 @@ CommonList g_list_source;
 int g_tcp_port;
 
 char g_tcp_server[1024];
+char g_tcp_bind[INET_ADDRSTRLEN] = "0.0.0.0";
 char g_tcp_password[1024];
 
 char g_sql_host[1024];
@@ -43,6 +44,7 @@ int g_stratum_max_ttf;
 int g_stratum_max_cons = 5000;
 bool g_stratum_reconnect;
 bool g_stratum_renting;
+bool g_stratum_solo_allowed = true;
 bool g_stratum_segwit = false;
 bool g_stratum_mweb = false;
 
@@ -327,6 +329,14 @@ int main(int argc, char **argv)
 	}
 
 	g_tcp_port = iniparser_getint(ini, "TCP:port", 3333);
+	const char *tcp_bind = iniparser_getstring(ini, "TCP:bind", NULL);
+	if (!tcp_bind) tcp_bind = "0.0.0.0";
+	struct in_addr bind_address;
+	if (inet_pton(AF_INET, tcp_bind, &bind_address) != 1) {
+		debuglog("TCP:bind must be a valid IPv4 address\n");
+		return 1;
+	}
+	strncpy(g_tcp_bind, tcp_bind, sizeof(g_tcp_bind) - 1);
 	strcpy(g_tcp_server, iniparser_getstring(ini, "TCP:server", NULL));
 	strcpy(g_tcp_password, iniparser_getstring(ini, "TCP:password", NULL));
 
@@ -363,6 +373,7 @@ int main(int argc, char **argv)
 	g_stratum_max_ttf = iniparser_getint(ini, "STRATUM:max_ttf", 0x70000000);
 	g_stratum_reconnect = iniparser_getint(ini, "STRATUM:reconnect", true);
 	g_stratum_renting = iniparser_getint(ini, "STRATUM:renting", true);
+	g_stratum_solo_allowed = iniparser_getint(ini, "STRATUM:solo", true);
 	g_handle_haproxy_ips = iniparser_getint(ini, "STRATUM:haproxy_ips", g_handle_haproxy_ips);
 	g_socket_recv_timeout = iniparser_getint(ini, "STRATUM:recv_timeout", 600);
 
@@ -559,7 +570,7 @@ void *stratum_thread(void *p)
 	struct sockaddr_in serv;
 
 	serv.sin_family = AF_INET;
-	serv.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (inet_pton(AF_INET, g_tcp_bind, &serv.sin_addr) != 1) yaamp_error("bind address");
 	serv.sin_port = htons(g_tcp_port);
 
 	int res = bind(listen_sock, (struct sockaddr*)&serv, sizeof(serv));

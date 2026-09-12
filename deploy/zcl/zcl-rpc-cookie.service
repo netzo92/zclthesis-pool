@@ -1,0 +1,14 @@
+[Unit]
+Description=Refresh ZCL pool loopback RPC authentication
+After=mariadb.service zclassic.service
+Requires=mariadb.service zclassic.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/zcl-pool/source/deploy/zcl/sync-rpc-cookie.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict

@@ -1,0 +1,27 @@
+[Unit]
+Description=ZCL Thesis native Equihash 192,7 Stratum
+After=network-online.target mariadb.service zclassic.service
+Requires=mariadb.service zclassic.service
+PartOf=zclassic.service
+
+[Service]
+Type=simple
+User=zclpool
+Group=zclpool
+UMask=0077
+WorkingDirectory=/opt/zcl-pool/source/stratum
+ExecStartPre=+/usr/bin/python3 /opt/zcl-pool/source/deploy/zcl/sync-rpc-cookie.py
+ExecStart=/opt/zcl-pool/source/stratum/stratum /etc/yiimp/equihash192.conf
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+LimitNOFILE=4096
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/log/yiimp
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

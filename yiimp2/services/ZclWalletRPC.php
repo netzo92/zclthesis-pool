@@ -22,7 +22,7 @@ final class ZclWalletRPC
 
     public function __invoke(string $method, array $params)
     {
-        if (!in_array($method, ['getblockchaininfo','validateaddress','z_validateaddress','z_getbalance','listunspent','z_shieldcoinbase','z_sendmany','z_getoperationstatus','gettransaction'], true)) {
+        if (!in_array($method, ['getblockchaininfo','getblockheader','getconnectioncount','validateaddress','z_validateaddress','z_getbalance','listunspent','z_shieldcoinbase','z_sendmany','z_getoperationstatus','gettransaction'], true)) {
             throw new \RuntimeException('RPC method is not part of the payout protocol');
         }
         $id = bin2hex(random_bytes(16));

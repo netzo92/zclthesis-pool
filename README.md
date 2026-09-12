@@ -6,7 +6,8 @@ CPU-only Zclassic pool infrastructure for the zclthesis.com community, based on
 
 **Status: integration and payout validation in progress. Public mining is closed.**
 This repository is public for review; publication does not mean the pool is ready
-to accept miners or distribute rewards.
+to accept miners or distribute rewards. The [production runbook](deploy/zcl/PRODUCTION.md)
+documents private configuration, scoped schedules and launch gates.
 
 The target chain is Zclassic mainnet using Equihash 192,7 with `ZcashPoW`
 personalization. The GCP host coordinates external miners and runs a full node,

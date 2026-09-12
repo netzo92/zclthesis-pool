@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS `queue` (
 
 -- Mark all five yii2-queue internal migrations as applied so that
 -- running "php yii migrate" does not try to re-run them.
+CREATE TABLE IF NOT EXISTS `migration` (
+  `version` VARCHAR(180) NOT NULL PRIMARY KEY,
+  `apply_time` INT DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT IGNORE INTO `migration` (`version`, `apply_time`) VALUES
   ('M161119140200Queue',       UNIX_TIMESTAMP()),
   ('M170307170300Later',       UNIX_TIMESTAMP()),

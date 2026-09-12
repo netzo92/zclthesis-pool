@@ -234,6 +234,17 @@ bool client_authorize(YAAMP_CLIENT *client, json_value *json_params)
 
 	if(json_params->u.array.length>1 && json_params->u.array.values[1]->u.string.ptr)
 		strncpy(client->password, json_params->u.array.values[1]->u.string.ptr, 1023);
+	if (!g_stratum_solo_allowed) {
+		std::vector<std::string> options;
+		std::string password(client->password);
+		string_tokenize(password, ',', options);
+		for (const auto &option : options) {
+			if (option == "m=solo") {
+				client_send_error(client, 21, "Solo mining is disabled on this pool");
+				return false;
+			}
+		}
+	}
 
 	if (g_list_client.count >= g_stratum_max_cons) {
 		client_send_error(client, 21, "Server full");
