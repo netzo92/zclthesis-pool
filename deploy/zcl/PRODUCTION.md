@@ -76,11 +76,33 @@ isolated test database, never production. Native sanitizer fixtures cover invali
 input, known 192,7 proofs, distinct solutions and exact replay rejection.
 
 Readiness requires a current mainnet tip, peers, high verification progress,
-matching block/header height and hash, and both bootstrap/finalization holds
-cleared. The imported-tip hold remains active during initial sync; a separate
-`finalization_hold.held=false` does not cancel it. Missing hold fields fail closed.
+matching block/header height and hash, and a cleared bootstrap hold. If
+`getblockchaininfo.live_corroboration` is present, the worker, private activation,
+payout coordinator and richlist publisher require its version 1 diagnostic to
+report boolean `ready:true` for that exact tip hash and integer height. Its integer
+`requiredDepth` must be positive, `candidateHeight` must equal
+`tipHeight-requiredDepth` and be nonnegative, and integer `requiredPeers` must be
+at least two on mainnet. `reason` must be a string; it is descriptive rather than
+a readiness code. Malformed fields, missing fields, unknown schema versions and
+`ready:false` close readiness even when the cached finalization hold is clear.
+
+A valid live diagnostic can supersede a stale cached `finalization_hold.held=true`
+after existing peers corroborate the current tip. This diagnostic reads the
+daemon's current guards; it does not change consensus or finalized state. When
+the live field is absent, including after rollback to the official daemon,
+readiness still requires explicit `finalization_hold.held=false`. The imported-tip
+`bootstrap_validation.tip_hold` must independently be explicit false on mainnet;
+neither live corroboration nor a cleared cached finalization hold cancels it.
+The existing isolated test-network payout fallback for older daemons is retained.
+Node-statistics `synced` remains a separate observation with its existing meaning.
 Anchored bootstrap and forward validation do not mean this VM independently
 replayed the chain from genesis.
+
+Regression checks: `php tests/accounting/readiness.php`,
+`python3 tests/public-data/readiness.py`, and `bash tests/payout/run.sh` (the payout
+suite defaults to a disposable SQLite database). These check live/cached
+compatibility, schema and tip mismatches, unchanged freshness/bootstrap gates,
+and preservation of payout reservations while readiness is held.
 
 After current-node and coinbase-template checks, enable the single ZCL coin and
 `YIIMP_ZCL_WORKER_ENABLED`. Enable strict booleans `YIIMP_PAYMENTS_ENABLED`,

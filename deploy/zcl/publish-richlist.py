@@ -38,18 +38,36 @@ def units(value):
 def iso(epoch):
     return dt.datetime.fromtimestamp(int(epoch), dt.timezone.utc).isoformat().replace('+00:00', 'Z')
 
+def finalization_ready(chain):
+    if 'live_corroboration' not in chain:
+        # Preserve the strict cached-hold fallback for an official/older daemon.
+        cached = chain.get('finalization_hold')
+        return type(cached) is dict and cached.get('held') is False
+    live = chain['live_corroboration']
+    return (type(live) is dict
+        and type(live.get('schemaVersion')) is int and live['schemaVersion'] == 1
+        and live.get('ready') is True
+        and type(live.get('tipHash')) is str and re.fullmatch(r'[0-9a-f]{64}', live['tipHash']) is not None
+        and live['tipHash'] == chain.get('bestblockhash')
+        and type(live.get('tipHeight')) is int and live['tipHeight'] >= 0
+        and type(chain.get('blocks')) is int and live['tipHeight'] == chain['blocks']
+        and type(live.get('requiredDepth')) is int and 0 < live['requiredDepth'] <= live['tipHeight']
+        and type(live.get('candidateHeight')) is int
+        and live['candidateHeight'] == live['tipHeight'] - live['requiredDepth']
+        and type(live.get('requiredPeers')) is int and live['requiredPeers'] >= 2
+        and type(live.get('reason')) is str)
+
 def require_current_chain(chain, header, now):
     height = chain.get('blocks')
     progress = chain.get('verificationprogress')
     validation = chain.get('bootstrap_validation', {})
-    finalization = chain.get('finalization_hold', {})
     if (type(height) is not int or height < 3126937 or chain.get('headers') != height
             or header.get('height') != height or header.get('hash') != chain.get('bestblockhash')
             or type(progress) not in (float, int, Decimal) or not math.isfinite(progress)
             or not Decimal('0.9999') <= Decimal(str(progress)) <= Decimal('1.000001')
             or chain.get('chain') != 'main' or chain.get('initialblockdownload', False)
             or validation.get('state') not in ('disabled', 'validated') or validation.get('tip_hold') is not False
-            or finalization.get('held') is not False
+            or not finalization_ready(chain)
             or type(header.get('time')) not in (int, float) or not math.isfinite(header['time'])
             or not -300 <= now - header['time'] <= 1800):
         raise RuntimeError('Node is not current and validated enough to publish')

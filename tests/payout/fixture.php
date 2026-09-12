@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/../../yiimp2/services/ZclAmount.php';
 require __DIR__ . '/../../yiimp2/services/ZclPayoutLedger.php';
+require __DIR__ . '/../../yiimp2/services/ZclNodeReadiness.php';
 require __DIR__ . '/../../yiimp2/services/ZclPayoutCoordinator.php';
 use app\services\ZclAmount;
 use app\services\ZclPayoutLedger;

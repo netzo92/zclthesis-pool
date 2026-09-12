@@ -10,7 +10,8 @@ done
 
 php tests/payout/ledger.php
 php tests/payout/operator.php
-for file in yiimp2/services/ZclAmount.php yiimp2/services/ZclPayoutLedger.php yiimp2/services/ZclPayoutCoordinator.php yiimp2/services/ZclPayoutService.php yiimp2/services/ZclWalletRPC.php yiimp2/commands/ZclPayoutController.php; do
+php tests/payout/readiness.php
+for file in yiimp2/services/ZclAmount.php yiimp2/services/ZclPayoutLedger.php yiimp2/services/ZclNodeReadiness.php yiimp2/services/ZclPayoutCoordinator.php yiimp2/services/ZclPayoutService.php yiimp2/services/ZclWalletRPC.php yiimp2/commands/ZclPayoutController.php; do
   php -l "$file"
 done
 

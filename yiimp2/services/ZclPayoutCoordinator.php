@@ -77,9 +77,17 @@ final class ZclPayoutCoordinator
             }
             $chain = $this->call('getblockchaininfo');
             if (($chain['chain'] ?? '') !== $this->config['network']) throw new RuntimeException('Unexpected wallet network');
+            $mainnet = $this->config['network'] === 'main';
+            $bootstrapReady = $mainnet ? ($chain['bootstrap_validation']['tip_hold'] ?? true) === false
+                : !($chain['bootstrap_validation']['tip_hold'] ?? false);
+            // Mainnet shares the worker's strict live/cached contract. Keep
+            // legacy test-network daemons without hold diagnostics compatible.
+            $finalizationReady = $mainnet || array_key_exists('live_corroboration', $chain)
+                ? ZclNodeReadiness::finalizationReady($chain)
+                : !($chain['finalization_hold']['held'] ?? false);
             if (($chain['initialblockdownload'] ?? false) || ($chain['verificationprogress'] ?? 0) < 0.9999
                 || !isset($chain['blocks'], $chain['headers']) || $chain['blocks'] !== $chain['headers']
-                || ($chain['bootstrap_validation']['tip_hold'] ?? false) || ($chain['finalization_hold']['held'] ?? false)) return 'syncing';
+                || !$bootstrapReady || !$finalizationReady) return 'syncing';
             if ($this->config['operator_enabled'] && !$this->ledger->auditOperatorCredits()) return 'accounting-held';
             if (!$batch) {
                 foreach ($this->ledger->recentConfirmedSends() as $txid) {
