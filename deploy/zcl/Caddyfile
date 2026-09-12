@@ -8,9 +8,11 @@ pool.zclthesis.com {
   @read method GET HEAD
   handle @read {
     handle /ws {
-      reverse_proxy 127.0.0.1:8787
+      reverse_proxy 127.0.0.1:8787 {
+        header_up X-Forwarded-For {http.request.remote.host}
+      }
     }
-    @minerSource path /mine/src/miner-worker.mjs /mine/src/miner-session.mjs /mine/src/protocol.mjs /mine/src/solver.mjs /mine/src/solver-reference.mjs /mine/src/solver-shaders.mjs
+    @minerSource path /mine/src/miner-worker.mjs /mine/src/protocol.mjs /mine/src/solver.mjs /mine/src/solver-reference.mjs /mine/src/solver-shaders.mjs
     handle @minerSource {
       uri strip_prefix /mine
       root * /opt/zcl-pool/webminer
