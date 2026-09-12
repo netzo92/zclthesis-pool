@@ -281,6 +281,8 @@ class PayoutCommand extends CConsoleCommand
 	 */
 	protected function redoTransaction($args)
 	{
+        if (!defined('YIIMP_PAYMENTS_ENABLED') || YIIMP_PAYMENTS_ENABLED !== true)
+            die("Payouts disabled; transaction replay is blocked.\n");
 		$txid = arraySafeVal($args, 1);
 		if (empty($txid))
 			die("Usage..\n");
@@ -294,6 +296,9 @@ class PayoutCommand extends CConsoleCommand
 		$coin = getdbo('db_coins', $payout->idcoin);
 		if (!$coin || !$coin->installed)
 			die("Invalid payout coin id\n");
+        if (strtoupper((string) $coin->symbol) === 'ZCL')
+            die("ZCL requires wallet reconciliation and the shielded payout coordinator.\n");
+
 
 		$relayfee = 0.0001;
 

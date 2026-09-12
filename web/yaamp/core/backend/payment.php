@@ -1,7 +1,16 @@
 <?php
 
+function BackendPaymentsEnabled()
+{
+    return defined('YIIMP_PAYMENTS_ENABLED') && YIIMP_PAYMENTS_ENABLED === true;
+}
+
 function BackendPayments()
 {
+    if (!BackendPaymentsEnabled()) {
+        debuglog('Payouts disabled: validation deployment does not send funds.');
+        return;
+    }
 	// attempt to increase max execution time limit for the cron job
 	set_time_limit(300);
 
@@ -14,26 +23,24 @@ function BackendPayments()
 
 function BackendUserCancelFailedPayment($userid)
 {
-	$user = getdbo('db_accounts', intval($userid));
-	if(!$user) return false;
-
-	$amount_failed = 0.0;
-	$failed = getdbolist('db_payouts', "account_id=:uid AND IFNULL(tx,'') = ''", array(':uid'=>$user->id));
-	if (!empty($failed)) {
-		foreach ($failed as $payout) {
-			$amount_failed += floatval($payout->amount);
-			$payout->delete();
-		}
-		$user->balance += $amount_failed;
-		$user->save();
-		return $amount_failed;
-	}
-
-	return 0.0;
+    debuglog('Automatic payout cancellation disabled: reconcile the wallet transaction first.');
+    return 0.0;
 }
 
 function BackendCoinPayments($coin)
 {
+    if (!BackendPaymentsEnabled()) {
+        debuglog('Payouts disabled: validation deployment does not send funds.');
+        return;
+    }
+    if (strtoupper((string) $coin->symbol) === 'ZCL') {
+        debuglog('ZCL payouts require the durable shielded payout coordinator; legacy sender blocked.');
+        return;
+    }
+    if (dboscalar("SELECT COUNT(*) FROM payouts WHERE idcoin=:coin AND IFNULL(tx,'')=''", array(':coin'=>$coin->id))) {
+        debuglog('Payouts held: unresolved transaction requires wallet reconciliation.');
+        return;
+    }
 //	debuglog("BackendCoinPayments $coin->symbol");
 	$remote = new WalletRPC($coin);
 
@@ -236,98 +243,6 @@ function BackendCoinPayments($coin)
 
 	debuglog("{$coin->symbol} payment done");
 
-	sleep(2);
-
-	// Search for previous payouts not executed (no tx)
-	$addresses = array(); $payouts = array();
-	$mailmsg = ''; $mailwarn = '';
-	foreach($users as $user)
-	{
-		$amount_failed = 0.0;
-		$failed = getdbolist('db_payouts', "account_id=:uid AND IFNULL(tx,'') = '' ORDER BY time", array(':uid'=>$user->id));
-		if (!empty($failed)) {
-			if ($coin->symbol == 'CHC') {
-				// tx made but payment rpc timed out
-				foreach ($failed as $payout) $amount_failed += floatval($payout->amount);
-				$notice = "payment: Found buggy payout without tx for {$user->username}!! $amount_failed {$coin->symbol}";
-				debuglog($notice);
-				$mailwarn .= "$notice\r\n";
-				continue;
-			}
-			foreach ($failed as $payout) {
-				$amount_failed += floatval($payout->amount);
-				$payout->delete();
-			}
-			if ($amount_failed > 0.0) {
-				debuglog("Found failed payment(s) for {$user->username}, $amount_failed {$coin->symbol}!");
-				if ($coin->rpcencoding == 'DCR') {
-					$data = $remote->validateaddress($user->username);
-					if (!$data['isvalid']) {
-						debuglog("Found bad address {$user->username}!! ($amount_failed {$coin->symbol})");
-						$user->is_locked = 1;
-						$user->save();
-						continue;
-					}
-				}
-				$payout = new db_payouts;
-				$payout->account_id = $user->id;
-				$payout->time = time();
-				$payout->amount = $amount_failed;
-				$payout->fee = 0;
-				$payout->idcoin = $coin->id;
-				if ($payout->save() && $amount_failed > $min_payout) {
-					$payouts[$payout->id] = $user->id;
-					$addresses[$user->username] = $amount_failed;
-					$mailmsg .= "{$amount_failed} {$coin->symbol} to {$user->username} - user id {$user->id}\n";
-				}
-			}
-		}
-	}
-
-	if (!empty($mailwarn)) {
-		send_email_alert('payouts', "{$coin->symbol} payout tx problems to check",
-			"$mailwarn\r\nCheck your wallet recent transactions to know if the payment was made, the RPC call timed out."
-		);
-	}
-
-	// redo failed payouts
-	if (!empty($addresses))
-	{
-		if (!$coin->txmessage)
-			$tx = $remote->sendmany($account, $addresses);
-		else
-			$tx = $remote->sendmany($account, $addresses, 1, YAAMP_SITE_NAME." retry");
-
-		if(empty($tx)) {
-			debuglog($remote->error);
-
-			foreach ($payouts as $id => $uid) {
-				$payout = getdbo('db_payouts', $id);
-				if ($payout && $payout->id == $id) {
-					$payout->errmsg = $remote->error;
-					$payout->save();
-				}
-			}
-
-			send_email_alert('payouts', "{$coin->symbol} payout problems detected\n {$remote->error}", $mailmsg);
-
-		} else {
-
-			foreach ($payouts as $id => $uid) {
-				$payout = getdbo('db_payouts', $id);
-				if ($payout && $payout->id == $id) {
-					$payout->tx = $tx;
-					$payout->save();
-				} else {
-					debuglog("payout retry $id for $uid not found!");
-				}
-			}
-
-			$mailmsg .= "\ntxid $tx\n";
-			send_email_alert('payouts', "{$coin->symbol} payout problems resolved", $mailmsg);
-		}
-	}
-
+    // A missing txid is an unknown broadcast outcome, not proof of failure.
+    // Never delete, refund, or retry these records automatically.
 }
-
-

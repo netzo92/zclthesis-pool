@@ -24,11 +24,21 @@ class PaymentService
     // -------------------------------------------------------------------------
 
     /**
-     * Run the full payment sequence for every enabled coin that has users with payable balances.
-     * Ports: BackendPayments()
+     * Strict, explicit opt-in for the payment workers and admin entry points.
      */
+    public static function paymentsEnabled(): bool
+    {
+        // An omitted setting, "true", or 1 must not silently authorize spending.
+        return defined('YIIMP_PAYMENTS_ENABLED') && YIIMP_PAYMENTS_ENABLED === true;
+    }
+
+    /** Run payouts only after the deployment explicitly enables spending. */
     public function doPayments(): void
     {
+        if (!self::paymentsEnabled()) {
+            Yii::warning('Payouts disabled: validation deployment does not send funds.', __CLASS__);
+            return;
+        }
         set_time_limit(300);
 
         $coins = Coins::find()
@@ -48,11 +58,26 @@ class PaymentService
     /**
      * Execute payouts for a single coin.
      * Handles both sendmany (batch) and sendtoaddress (per-user) modes,
-     * BTC cold-wallet distribution, and retry of previously failed payouts.
+     * BTC cold-wallet distribution. Unknown broadcasts are held for reconciliation.
      * Ports: BackendCoinPayments()
      */
     public function payCoin(Coins $coin): void
     {
+        if (!self::paymentsEnabled()) {
+            Yii::warning('Payouts disabled: validation deployment does not send funds.', __CLASS__);
+            return;
+        }
+        if (strtoupper((string) $coin->symbol) === 'ZCL') {
+            // ZCL coinbase must first pass through shielding. This Bitcoin-style
+            // sender cannot spend mined ZCL safely, even when explicitly enabled.
+            Yii::error('ZCL payouts require the durable shielded payout coordinator; legacy sender blocked.', __CLASS__);
+            return;
+        }
+        if (Payouts::find()->where(['idcoin' => $coin->id])
+            ->andWhere(['or', ['tx' => null], ['tx' => '']])->exists()) {
+            Yii::error('Payouts held: unresolved transaction requires wallet reconciliation.', __CLASS__);
+            return;
+        }
         $remote = new \app\components\rpc\WalletRPC($coin);
         $info   = $remote->getinfo();
 
@@ -248,139 +273,18 @@ class PaymentService
         }
 
         Yii::info("{$coin->symbol} payment done", __CLASS__);
-        sleep(2);
-
-        // Retry payouts that have no txid (RPC may have timed out during broadcast)
-        $retryAddresses = [];
-        $retryPayouts   = [];
-        $mailMsg        = '';
-        $mailWarn       = '';
-
-        foreach ($users as $user) {
-            $failed = Payouts::find()
-                ->where(['account_id' => $user->id])
-                ->andWhere(['or', ['tx' => null], ['tx' => '']])
-                ->orderBy('time')
-                ->all();
-
-            if (empty($failed)) {
-                continue;
-            }
-
-            $amountFailed = 0.0;
-
-            if ($coin->symbol === 'CHC') {
-                foreach ($failed as $p) {
-                    $amountFailed += (float) $p->amount;
-                }
-                $notice   = "Found buggy payout without tx for {$user->username}: {$amountFailed} {$coin->symbol}";
-                Yii::warning($notice, __CLASS__);
-                $mailWarn .= "{$notice}\r\n";
-                continue;
-            }
-
-            foreach ($failed as $p) {
-                $amountFailed += (float) $p->amount;
-                $p->delete();
-            }
-
-            if ($amountFailed <= 0.0) {
-                continue;
-            }
-
-            Yii::warning("Found failed payment for {$user->username}, {$amountFailed} {$coin->symbol}", __CLASS__);
-
-            if ($coin->rpcencoding === 'DCR') {
-                $data = $remote->validateaddress($user->username);
-                if (!($data['isvalid'] ?? false)) {
-                    Yii::warning("Bad address {$user->username} ({$amountFailed} {$coin->symbol})", __CLASS__);
-                    $user->is_locked = 1;
-                    $user->save();
-                    continue;
-                }
-            }
-
-            $payout             = new Payouts();
-            $payout->account_id = $user->id;
-            $payout->time       = time();
-            $payout->amount     = $amountFailed;
-            $payout->fee        = 0;
-            $payout->idcoin     = $coin->id;
-
-            if ($payout->save() && $amountFailed > $minPayout) {
-                $retryPayouts[$payout->id]        = $user->id;
-                $retryAddresses[$user->username]  = $amountFailed;
-                $mailMsg .= "{$amountFailed} {$coin->symbol} to {$user->username} (id {$user->id})\n";
-            }
-        }
-
-        if (!empty($mailWarn)) {
-            $this->sendAlert(
-                "{$coin->symbol} payout tx problems to check",
-                "{$mailWarn}\r\nCheck your wallet recent transactions — the RPC call may have timed out."
-            );
-        }
-
-        if (!empty($retryAddresses)) {
-            $tx = $coin->txmessage
-                ? $remote->sendmany($account, $retryAddresses, 1, "{$siteName} retry")
-                : $remote->sendmany($account, $retryAddresses);
-
-            if (empty($tx)) {
-                Yii::warning($remote->error, __CLASS__);
-                foreach ($retryPayouts as $id => $uid) {
-                    $payout = Payouts::findOne($id);
-                    if ($payout) {
-                        $payout->errmsg = $remote->error;
-                        $payout->save();
-                    }
-                }
-                $this->sendAlert("{$coin->symbol} payout problems detected\n{$remote->error}", $mailMsg);
-            } else {
-                foreach ($retryPayouts as $id => $uid) {
-                    $payout = Payouts::findOne($id);
-                    if ($payout) {
-                        $payout->tx = $tx;
-                        $payout->save();
-                    } else {
-                        Yii::warning("payout retry {$id} for {$uid} not found", __CLASS__);
-                    }
-                }
-                $mailMsg .= "\ntxid {$tx}\n";
-                $this->sendAlert("{$coin->symbol} payout problems resolved", $mailMsg);
-            }
-        }
+        // A missing txid is an unknown broadcast outcome, not proof of failure.
+        // Never delete, refund, or retry these records automatically.
     }
 
     /**
-     * Delete any pending payouts without a txid and return the refunded amount to the user balance.
-     * Ports: BackendUserCancelFailedPayment()
+     * Preserve ambiguous payout reservations until wallet reconciliation.
+     * A timed-out RPC may already have broadcast, so cancellation is not a refund.
      */
     public function cancelFailedPayment(int $userId): float
     {
-        $user = Accounts::findOne($userId);
-        if (!$user) {
-            return 0.0;
-        }
-
-        $failed = Payouts::find()
-            ->where(['account_id' => $user->id])
-            ->andWhere(['or', ['tx' => null], ['tx' => '']])
-            ->all();
-
-        if (empty($failed)) {
-            return 0.0;
-        }
-
-        $amountFailed = 0.0;
-        foreach ($failed as $payout) {
-            $amountFailed += (float) $payout->amount;
-            $payout->delete();
-        }
-
-        $user->balance += $amountFailed;
-        $user->save();
-        return $amountFailed;
+        Yii::warning('Automatic payout cancellation disabled: reconcile the wallet transaction first.', __CLASS__);
+        return 0.0;
     }
 
     /**
@@ -517,7 +421,6 @@ class PaymentService
         foreach ([
             "DELETE FROM blocks WHERE time<{$delay60}",
             "DELETE FROM hashstats WHERE time<{$delay60}",
-            "DELETE FROM payouts WHERE time<{$delay60}",
             "DELETE FROM rentertxs WHERE time<{$delay60}",
             "DELETE FROM shares WHERE time<{$delay60}",
             "DELETE FROM stats WHERE time<{$delay2}",

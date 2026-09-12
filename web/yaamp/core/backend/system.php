@@ -150,7 +150,7 @@ function BackendCleanDatabase()
 	$delay = time() - 60*24*60*60;
 	dborun("DELETE from blocks where time<$delay");
 	dborun("delete from hashstats where time<$delay");
-	dborun("delete from payouts where time<$delay");
+	// Preserve the payout ledger, including unknown broadcast outcomes.
 	dborun("delete from rentertxs where time<$delay");
 	dborun("DELETE FROM shares WHERE time<$delay");
 

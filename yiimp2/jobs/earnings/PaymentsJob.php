@@ -21,7 +21,8 @@ class PaymentsJob extends BaseJob
 
     protected function perform(): void
     {
-        if (!defined('YIIMP_PRODUCTION') || !YIIMP_PRODUCTION) {
+        if (!\app\services\PaymentService::paymentsEnabled()
+            || !defined('YIIMP_PRODUCTION') || !YIIMP_PRODUCTION) {
             return;
         }
 

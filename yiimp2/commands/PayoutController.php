@@ -196,6 +196,10 @@ class PayoutController extends Controller
     /** Redo payment from a bad fork — re-sends same amounts under a new txid. */
     public function actionRedotx(string $txid): int
     {
+        if (!\app\services\PaymentService::paymentsEnabled()) {
+            $this->stderr("Payouts disabled; transaction replay is blocked.\n");
+            return ExitCode::UNSPECIFIED_ERROR;
+        }
         if (!defined('YIIMP_CLI_ALLOW_TXS') || !YIIMP_CLI_ALLOW_TXS) {
             $this->stderr("YIIMP_CLI_ALLOW_TXS is not enabled in serverconfig.php\n");
             return ExitCode::UNSPECIFIED_ERROR;
@@ -206,6 +210,11 @@ class PayoutController extends Controller
 
         $coin = Coins::findOne($payouts[0]->idcoin);
         if (!$coin || !$coin->installed) { $this->stderr("invalid coin\n"); return ExitCode::UNSPECIFIED_ERROR; }
+        if (strtoupper((string) $coin->symbol) === 'ZCL') {
+            $this->stderr("ZCL requires wallet reconciliation and the shielded payout coordinator.\n");
+            return ExitCode::UNSPECIFIED_ERROR;
+        }
+
 
         $dests    = [];
         $total    = 0.0;
