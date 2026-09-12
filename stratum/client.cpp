@@ -1,11 +1,17 @@
 
 #include "stratum.h"
+#include "submit_validation.h"
+#include <cmath>
 
 bool client_suggest_difficulty(YAAMP_CLIENT *client, json_value *json_params)
 {
 	if(json_params->u.array.length>0)
 	{
-		double diff = client_normalize_difficulty(json_params->u.array.values[0]->u.dbl, client);
+		const json_value *value = json_params->u.array.values[0];
+		if (value->type != json_integer && value->type != json_double) return false;
+		double requested = value->type == json_integer ? value->u.integer : value->u.dbl;
+		if (!std::isfinite(requested) || requested <= 0) return false;
+		double diff = client_normalize_difficulty(requested, client);
 		uint64_t user_target = diff_to_target(diff);
 
 		if(user_target >= YAAMP_MINDIFF && user_target <= YAAMP_MAXDIFF)
@@ -24,6 +30,7 @@ bool client_suggest_target(YAAMP_CLIENT *client, json_value *json_params)
 
 bool client_subscribe(YAAMP_CLIENT *client, json_value *json_params)
 {
+	if (!stratum_input::subscribe(json_params)) return false;
 	//if(client_find_my_ip(client->sock->ip)) return false;
 	if (is_kawpow || is_firopow || is_phihash || is_meowpow)
 		get_nonce_prefix(client->extranonce1_default);
@@ -49,7 +56,7 @@ bool client_subscribe(YAAMP_CLIENT *client, json_value *json_params)
 
 	if(json_params->u.array.length>0)
 	{
-		if (json_params->u.array.values[0]->u.string.ptr)
+		if (json_params->u.array.values[0]->type == json_string)
 			strncpy(client->version, json_params->u.array.values[0]->u.string.ptr, 1023);
 
 		if (strstr(client->version, "NiceHash")) {
@@ -68,7 +75,7 @@ bool client_subscribe(YAAMP_CLIENT *client, json_value *json_params)
 	if(json_params->u.array.length>1)
 	{
 		char notify_id[1024] = { 0 };
-		if (json_params->u.array.values[1]->u.string.ptr)
+		if (json_params->u.array.values[1]->type == json_string)
 			strncpy(notify_id, json_params->u.array.values[1]->u.string.ptr, 1023);
 
 		YAAMP_CLIENT *client1 = client_find_notify_id(notify_id, true);
@@ -214,6 +221,10 @@ bool client_validate_user_address(YAAMP_CLIENT *client)
 
 bool client_authorize(YAAMP_CLIENT *client, json_value *json_params)
 {
+	if (!stratum_input::string_params(json_params) || json_params->u.array.length < 1 ||
+		!stratum_input::string_value(json_params->u.array.values[0], 1023) ||
+		(json_params->u.array.length > 1 && !stratum_input::string_value(json_params->u.array.values[1], 1023)))
+		return false;
 
 	if(g_list_client.Find(client)) {
 		clientlog(client, "Already logged");
@@ -312,7 +323,10 @@ bool client_authorize(YAAMP_CLIENT *client, json_value *json_params)
 bool client_update_block(YAAMP_CLIENT *client, json_value *json_params)
 {
 	// password, id, block hash
-	if(json_params->u.array.length < 3 || !json_params->u.array.values[0]->u.string.ptr)
+	if(json_params->u.array.length != 3 ||
+		!stratum_input::string_value(json_params->u.array.values[0], 1023) ||
+		json_params->u.array.values[1]->type != json_integer ||
+		!stratum_input::hex_value(json_params->u.array.values[2], 64, 64))
 	{
 		clientlog(client, "update block, bad params");
 		return false;
@@ -581,20 +595,27 @@ void *client_thread(void *p)
 //			clientlog(client, "bad json");
 			break;
 		}
+		if (!stratum_input::envelope(json)) {
+			json_value_free(json);
+			clientlog(client, "bad JSON-RPC envelope");
+			break;
+		}
 
-		client->id_int = json_get_int(json, "id");
-		client->id_str = json_get_string(json, "id");
+		const json_value *request_id = stratum_input::member(json, "id");
+		client->id_int = request_id && request_id->type == json_integer ? request_id->u.integer : 0;
+		client->id_str = request_id && request_id->type == json_string ? request_id->u.string.ptr : NULL;
 		if (client->id_str && strlen(client->id_str) > 32) {
 			clientlog(client, "bad id");
 			break;
 		}
 
-		const char *method = json_get_string(json, "method");
+		const json_value *request_method = stratum_input::member(json, "method");
+		const char *method = request_method ? request_method->u.string.ptr : NULL;
 
 		if (!method && client->stats && client->id_int == client->reqid)
 		{
 			json_value *result = json_get_object(json, "result");
-			if (result) client_store_stats(client, result);
+			if (result && result->type == json_object) client_store_stats(client, result);
 			json_value_free(json);
 			continue;
 		}
@@ -607,7 +628,7 @@ void *client_thread(void *p)
 		}
 
 		json_value *json_params = json_get_array(json, "params");
-		if(!json_params)
+		if(!json_params || json_params->type != json_array)
 		{
 			json_value_free(json);
 			clientlog(client, "bad json, no params");

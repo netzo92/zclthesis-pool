@@ -110,6 +110,8 @@ typedef struct _json_value
       {
          unsigned int length;
 
+         size_t names_size; /* first-pass object-key allocation size */
+
          struct
          {
             json_char * name;
@@ -288,5 +290,4 @@ double json_double_value(const json_value *json);
 #endif
 
 #endif
-
 

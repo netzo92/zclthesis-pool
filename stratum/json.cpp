@@ -132,7 +132,7 @@ static int new_value
             values_size = sizeof (*value->u.object.values) * value->u.object.length;
 
             if (! ((*(void **) &value->u.object.values) = json_alloc
-                  (state, values_size + ((unsigned long) value->u.object.values), 0)) )
+                  (state, values_size + value->u.object.names_size, 0)) )
             {
                return 0;
             }
@@ -397,7 +397,7 @@ json_value * json_parse_ex (json_settings * settings,
                   case json_object:
 
                      if (state.first_pass)
-                        (*(json_char **) &top->u.object.values) += string_length + 1;
+                        top->u.object.names_size += (string_length + 1) * sizeof(json_char);
                      else
                      {
                         top->u.object.values [top->u.object.length].name
@@ -1037,4 +1037,3 @@ json_value* json_get_val(json_value *obj, const char *key)
 
    return NULL;
 }
-

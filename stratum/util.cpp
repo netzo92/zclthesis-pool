@@ -1,5 +1,6 @@
 
 #include "stratum.h"
+#include "submit_validation.h"
 #include <math.h>
 #include <limits.h>
 
@@ -916,11 +917,7 @@ void string_upper(char *s)
 
 bool valid_string_params(json_value *json_params)
 {
-        for(int p=0; p < json_params->u.array.length; p++) {
-                if (!json_is_string(json_params->u.array.values[p]))
-                        return false;
-        }
-        return true;
+        return stratum_input::string_params(json_params);
 }
 
 void decode_nbits(uint256& target_, unsigned int nbits)

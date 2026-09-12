@@ -57,6 +57,8 @@ endif
 
 $(SOURCES): stratum.h util.h
 
+$(OBJECTS): json.h submit_validation.h
+
 $(OUTPUT): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDLIBS) $(LDFLAGS) -o $@
 
@@ -95,4 +97,3 @@ install: clean all
 	strip -s stratum
 	cp stratum /usr/local/bin/
 	cp stratum ../bin/
-

@@ -1,5 +1,6 @@
 
 #include "stratum.h"
+#include "submit_validation.h"
 
 uint64_t lyra2z_height = 0;
 
@@ -104,18 +105,18 @@ void build_submit_values_equihash(YAAMP_JOB_VALUES *submitvalues, YAAMP_JOB_TEMP
 		merkle_hash = g_current_algo->merkle_func;
 	merkle_hash((char *)coinbase_bin, doublehash, coinbase_len/2);
 
-	static char version_reversed[1024];
-	static char prev_hash_reversed[1024];
-	static char merkleroot_reversed[1024];
-	static char finalsaplingroot_reversed[1024];
-	static char time_reversed[1024];
-	static char bits_reversed[1024];
+	char version_reversed[1024];
+	char prev_hash_reversed[1024];
+	char merkleroot_reversed[1024];
+	char finalsaplingroot_reversed[1024];
+	char time_reversed[1024];
+	char bits_reversed[1024];
 
 	string_be(templ->version, version_reversed);
 	string_be(templ->prevhash_hex, prev_hash_reversed);
 	string_be(templ->merkleroot, merkleroot_reversed);
 	string_be(templ->saplingroothash, finalsaplingroot_reversed);
-	string_be(templ->ntime, time_reversed);
+	string_be(ntime, time_reversed);
 	string_be(templ->nbits, bits_reversed);
 
 	string merkleroot = merkle_with_first(templ->txsteps, doublehash);
@@ -151,7 +152,7 @@ void build_submit_values_equihash(YAAMP_JOB_VALUES *submitvalues, YAAMP_JOB_TEMP
 	binlify((unsigned char*)submitvalues->header_bin, submitvalues->header);
 
 	// header_be contains full header+solution, not bigendian header
-	static char header_solution_bin[8192]; memset(header_solution_bin,0,8192);
+	char header_solution_bin[8192] = {};
 
 	sprintf(submitvalues->header_be, "%s%s", submitvalues->header, equihash_solution);
 	int header_solution_len = strlen(submitvalues->header_be)/2;
@@ -505,14 +506,17 @@ bool client_submit(YAAMP_CLIENT *client, json_value *json_params)
 	if (is_kawpow || is_firopow || is_phihash || is_meowpow) {
 		return kawpow_submit(client, json_params);
 	}
-	// submit(worker_name, jobid, extranonce2, ntime, nonce):
-	if(json_params->u.array.length<5 || !valid_string_params(json_params)) {
+	const bool is_equihash = (strstr(g_current_algo->name, "equihash") == g_current_algo->name);
+	// Reject malformed JSON, oversized fields and non-canonical solutions before
+	// any copy, string reversal, numeric conversion or binary decode.
+	const bool valid = is_equihash ?
+		stratum_input::equihash_submit(json_params, g_equihash_wn, g_equihash_wk, YAAMP_EQUIHASH_NONCE_SIZE) :
+		stratum_input::standard_submit(json_params, g_stratum_algo);
+	if (!valid) {
 		debuglog("%s - %s bad message\n", client->username, client->sock->ip);
 		client->submit_bad++;
 		return false;
 	}
-
-	bool is_equihash = (strstr(g_current_algo->name, "equihash") == g_current_algo->name);
 
 	char extranonce2[32] = { 0 };
 	char extra[160] = { 0 };
@@ -531,19 +535,12 @@ bool client_submit(YAAMP_CLIENT *client, json_value *json_params)
 	memset(versionbits, 0, 32);
 	memset(equihash_solution, 0, 2800);
 
-	if (strlen(json_params->u.array.values[1]->u.string.ptr) > 32) {
-		clientlog(client, "bad json, wrong jobid len");
-		client->submit_bad++;
-		return false;
-	}
 	int jobid = htoi(json_params->u.array.values[1]->u.string.ptr);
 
 	if (is_equihash) {
 		string_be(json_params->u.array.values[2]->u.string.ptr, ntime);
 		strcpy(nonce,json_params->u.array.values[3]->u.string.ptr);
-		if ((json_params->u.array.length == 5) &&
-			(strlen(json_params->u.array.values[4]->u.string.ptr) <= 2800))
-			strcpy(equihash_solution, json_params->u.array.values[4]->u.string.ptr);
+		strcpy(equihash_solution, json_params->u.array.values[4]->u.string.ptr);
 	}
 	else {
 		strncpy(extranonce2, json_params->u.array.values[2]->u.string.ptr, 31);
@@ -559,7 +556,7 @@ bool client_submit(YAAMP_CLIENT *client, json_value *json_params)
 	if (json_params->u.array.length == 6) {
 		if (strstr(g_stratum_algo, "sha256")) {
 			// get versionbits for asicboost
-			strncpy(versionbits, json_params->u.array.values[5]->u.string.ptr, 32);
+			strcpy(versionbits, json_params->u.array.values[5]->u.string.ptr);
 			string_lower(versionbits);
 			versionmask = strtoul(versionbits, NULL, 16);
 		}

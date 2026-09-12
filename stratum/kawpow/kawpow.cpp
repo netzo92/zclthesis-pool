@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "stratum.h"
+#include "../submit_validation.h"
 
 //#include <openssl/sha.h>
 
@@ -234,7 +235,7 @@ void kawpow_block(YAAMP_CLIENT* client, YAAMP_JOB* job, YAAMP_JOB_TEMPLATE *temp
 bool kawpow_submit(YAAMP_CLIENT* client, json_value* json_params)
 {
     // submit(worker_name, jobid, nonce, header, mixhash):
-    if (json_params->u.array.length < 5 || !valid_string_params(json_params)) {
+    if (!stratum_input::kawpow_submit(json_params)) {
         debuglog("%s - %s bad message\n", client->username, client->sock->ip);
         client->submit_bad++;
         return false;
@@ -253,15 +254,13 @@ bool kawpow_submit(YAAMP_CLIENT* client, json_value* json_params)
 
     int jobid = htoi(json_params->u.array.values[1]->u.string.ptr);
 
-    // test if miner has supplied params with prefix
-    int offset = 0;
-    if (!memcmp(json_params->u.array.values[2]->u.string.ptr, "0x", 2)) {
-        offset = 2;
-    }
-
-    strncpy(nonce, json_params->u.array.values[2]->u.string.ptr + offset, 16);
-    strncpy(header, json_params->u.array.values[3]->u.string.ptr + offset, 64);
-    strncpy(mixhash, json_params->u.array.values[4]->u.string.ptr + offset, 64);
+    // Prefixes are optional for each validated field, independently.
+    const int nonce_offset = json_params->u.array.values[2]->u.string.length == 18 ? 2 : 0;
+    const int header_offset = json_params->u.array.values[3]->u.string.length == 66 ? 2 : 0;
+    const int mix_offset = json_params->u.array.values[4]->u.string.length == 66 ? 2 : 0;
+    memcpy(nonce, json_params->u.array.values[2]->u.string.ptr + nonce_offset, 16);
+    memcpy(header, json_params->u.array.values[3]->u.string.ptr + header_offset, 64);
+    memcpy(mixhash, json_params->u.array.values[4]->u.string.ptr + mix_offset, 64);
 
     string_lower(nonce);
     string_lower(header);
