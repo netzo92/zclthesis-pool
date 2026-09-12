@@ -164,7 +164,8 @@ void share_write(YAAMP_DB *db)
 		}
 
 		if(count) strcat(buffer, ",");
-		sprintf(buffer+strlen(buffer), "(%d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '%s', %d, %d, %d)",
+		// Preserve the native double, including low-difficulty Equihash weights.
+		sprintf(buffer+strlen(buffer), "(%d, %d, %d, %d, %d, %d, %d, %.17g, %.17g, %d, '%s', %d, %d, %d)",
 			worker->userid, worker->workerid, worker->coinid, worker->remoteid, pid,
 			worker->valid, worker->extranonce1, worker->difficulty, worker->share_diff, now, g_stratum_algo, worker->error_number, worker->solo, worker->height);
 
@@ -381,4 +382,3 @@ void submit_prune(YAAMP_DB *db)
 	g_list_submit.Leave();
 	if(count) db_query(db, buffer);
 }
-
