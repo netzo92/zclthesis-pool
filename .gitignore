@@ -22,3 +22,10 @@ web/assets/
 web/yaamp/.idea/
 *.0
 .vscode/
+
+# ZCL Thesis runtime state and secrets (never publish)
+/deploy/zcl/runtime/
+/deploy/zcl/secrets/
+*.pem
+*.key
+.env
