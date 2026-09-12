@@ -4,24 +4,29 @@ CPU-only Zclassic pool infrastructure for the zclthesis.com community, based on
 [tpfuemp/yiimp](https://github.com/tpfuemp/yiimp) at
 `74988f929b65fb088d97444d718ecf869f5149d2`.
 
-**Status: integration and payout validation in progress. Public mining is closed.**
-This repository is public for review; publication does not mean the pool is ready
-to accept miners or distribute rewards. The [production runbook](deploy/zcl/PRODUCTION.md)
-documents private configuration, scoped schedules and launch gates.
+**Public mining opened on September 12, 2026.** Check the current
+[pool status](https://pool.zclthesis.com/) before connecting: admission depends on
+fresh node and accounting readiness. Connect native miners to
+`stratum+tcp://pool.zclthesis.com:2192`, using your transparent ZCL payout address
+as the username and `c=ZCL` as the password. The
+[browser GPU miner](https://pool.zclthesis.com/mine/) requires an explicit start.
+The [production runbook](deploy/zcl/PRODUCTION.md) documents private configuration,
+scoped schedules and launch gates; [GCP operations](docs/GCP-OPERATIONS.md) records
+capacity, snapshot and launch validation.
 
 The target chain is Zclassic mainnet using Equihash 192,7 with `ZcashPoW`
 personalization. The GCP host coordinates external miners and runs a full node,
 share validation, accounting, payouts, and monitoring. It does not generate
 hashpower, install a GPU, or enable daemon mining (`-gen=0`).
 
-## Current work
+## Production behavior
 
-- Harden Stratum inputs before decoding and native proof verification.
-- Validate current Zclassic templates, accepted shares, and block submission.
-- Add durable shielded payout handling. ZCL coinbase outputs must be shielded
-  before paying miners; generic transparent `sendmany` is insufficient.
-- Persist payout intents before RPC calls. Ambiguous submissions must be held for
-  reconciliation rather than retried or refunded automatically.
+- Validate bounded Stratum inputs and native Equihash proofs before accepting work.
+- Attribute accepted work to each miner's public payout address.
+- Shield matured ZCL coinbase rewards before paying miners, with confirmation
+  checks at each stage.
+- Persist payout intents before RPC calls and hold ambiguous submissions for
+  reconciliation.
 - Keep admin, wallet RPC, database, and process-control endpoints private.
 
 `deploy/zcl/gcp-bootstrap.sh` prepares an Ubuntu 24.04 CPU build host.
@@ -32,9 +37,12 @@ credentials, backups, and database data belong outside this repository.
 The selected launch fee is **0.8%** (80 basis points); miners retain 99.2% of
 allocated rewards. This is 20% below a 1% fee, using zpool’s published
 Equihash 192,7 fee as a named benchmark, not a universal competitor claim.
-Payout threshold, accounting window, and connection command are confirmed during
-integration validation. No mainnet payout or public
-mining endpoint is claimed by this preliminary configuration.
+The miner payout threshold is **0.05 ZCL**. Rewards are proportional to accepted
+work in each block round; the operator reserve covers transaction fees. The launch
+test accepted 14 real GPU shares and verified their account attribution and the
+configured operator fee recipient. It found no mainnet block and made no mainnet
+payment. Protected-Sapling payout and reconciliation paths were tested separately
+on regtest; see [payout accounting](docs/ZCL-PAYOUTS.md).
 
 See [UPSTREAM-README.md](UPSTREAM-README.md) for the inherited application's
 architecture and build instructions. Upstream examples are not our production
@@ -52,5 +60,6 @@ wallet state and must never be uploaded or served.
 
 `publish-node-stats.py` publishes allowlisted read-only fields once a minute.
 Caddy serves only explicitly listed static routes and sanitized JSON. Public wallet
-RPC, database, supervisor, admin console, and mining ingress remain closed during
-validation. The private admin interface is accessed through an IAP SSH tunnel.
+RPC, database, supervisor and admin console remain private. Public mining uses
+TCP 2192 or the restricted HTTPS WebSocket bridge. The private admin interface is
+accessed through an IAP SSH tunnel.
