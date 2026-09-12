@@ -19,7 +19,8 @@ def main():
         raise RuntimeError('Run as root')
     for unit in ['zcl-pool-worker.timer', 'zcl-pool-worker.service',
                  'zcl-pool-payout.timer', 'zcl-pool-payout.service']:
-        if subprocess.run(['systemctl', 'is-active', '--quiet', unit]).returncode == 0:
+        state=subprocess.run(['systemctl', 'is-active', unit],capture_output=True,text=True).stdout.strip()
+        if state not in ['inactive', 'failed', 'unknown']:
             raise RuntimeError('Stop worker schedules before migration: '+unit)
     for migration in sorted((ROOT/'sql').glob('20*.sql')):
         source=migration.read_text()
