@@ -86,6 +86,15 @@ check($worker->tick()==='held','Ambiguous send was not held');
 for($i=0;$i<4;$i++) check($worker->tick()==='held','Ambiguous send was replayed');
 check($wallet->mutations===1 && balance($db,1)===0,'Unknown send was retried or refunded');
 echo "PASS ambiguous send timeout remains reserved without retry\n";
+$db=setup(); $wallet=new FakeWallet(); $wallet->shieldBalance='1';
+$failingLedger=new class($db,1) extends ZclPayoutLedger {
+    public function recordOperationId(string $id,string $opid): void { throw new RuntimeException('Injected journal-write failure after accepted RPC'); }
+};
+$worker=new ZclPayoutCoordinator($failingLedger,$wallet,config(),true);
+check($worker->tick()==='held' && $wallet->mutations===1,'Accepted RPC with failed journal update was not held');
+check(coordinator($db,$wallet)->tick()==='held' && $wallet->mutations===1,'Restart replayed accepted but unrecorded RPC');
+echo "PASS accepted RPC followed by journal-write failure cannot replay\n";
+
 
 $db=setup(); $wallet=new FakeWallet(); $ledger=new ZclPayoutLedger($db,1);
 check($ledger->claim(),'Could not claim worker'); $batch=$ledger->reserve(config()+['network'=>'main','minimum_zat'=>5000000,'fee_zat'=>10000,'confirmations'=>6,'coinbase_confirmations'=>101,'max_recipients'=>50,'shield_limit'=>50]);
@@ -108,6 +117,11 @@ check(coordinator($db,$wallet)->tick()==='waiting-for-funding' && $wallet->mutat
 $db=setup(); $wallet=new FakeWallet(); $wallet->utxos[0]['generated']=false;
 check(coordinator($db,$wallet)->tick()==='waiting-for-funding' && $wallet->mutations===0,'Ordinary UTXO was treated as coinbase');
 echo "PASS coinbase maturity and generated-output checks\n";
+$db=setup(); $wallet=new FakeWallet(); $wallet->shieldBalance='0.1984'; $wallet->utxos=[];
+check(coordinator($db,$wallet)->tick()==='waiting-for-funding' && $wallet->mutations===0,'Payout spent miner credit to cover network fee');
+check(scalar($db,'SELECT SUM(amount_zat) FROM zcl_payment_items')==19840000,'Unfunded fee changed recipient reservations');
+echo "PASS network fee shortage does not reduce miner amounts\n";
+
 
 $db=setup(); $wallet=new FakeWallet(); $worker=coordinator($db,$wallet);
 $wallet->duringMutation=function()use($db){ check(coordinator($db,new FakeWallet())->tick()==='busy','Second worker entered the mutation window'); };
