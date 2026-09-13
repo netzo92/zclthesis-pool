@@ -241,3 +241,15 @@ sudo systemctl status zcl-prices.timer --no-pager
 sudo journalctl -u zcl-prices.service -n 15 --no-pager
 sudo -u zcl-prices python3 -c 'import sqlite3; c=sqlite3.connect("file:/var/lib/zcl-prices/prices.sqlite3?mode=ro",uri=True); print(c.execute("SELECT count(*), min(observed_ms), max(observed_ms) FROM observations").fetchone())'
 ```
+
+Deployment verified September 13, 2026 UTC from source `07189a7`. Recording began
+at 00:36:54.309 UTC; the first stored observation was 00:36:55.157 UTC. Subsequent
+scheduled polls at 00:37:02.656, 00:38:03.019 and 00:39:02.756 increased the archive
+without manual runs, preserving earlier rows and the unchanged exchange trade time.
+The database and online backup both passed SQLite integrity checks. Private modes
+were 0700 for state and 0600 for database/backup; the unit runs as `zcl-prices`.
+Installed recorder, units and Caddy hashes matched the committed source. Both
+public history files returned valid data, and the 800-trade backfill's SHA-256
+matched its manifest. All 26 focused Python tests passed, including the existing
+transaction exporter tests. Existing node, Stratum and browser-bridge services
+remained active; no new VM, GPU or public write endpoint was introduced.
