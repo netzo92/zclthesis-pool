@@ -5,6 +5,7 @@ use PDO;
 use RuntimeException;
 
 require_once __DIR__.'/ZclTreasuryStats.php';
+require_once __DIR__.'/ZclRoundProjection.php';
 
 /** Public, address-scoped, read-only pool accounting and accepted-work reporting. */
 final class ZclMinerStats
@@ -185,6 +186,10 @@ final class ZclMinerStats
             'thresholdReached'=>$available >= $threshold,'accountingHeld'=>$held,
             'payoutLocked'=>$account ? (bool)$account['is_locked'] : false,
             'work'=>$this->work($coin,$account ? (int)$account['id'] : -1,$now,$network)];
+        $miner['projection'] = (new ZclRoundProjection($this->db))->snapshot($coin,$address,
+            $account ? (int)$account['id'] : null,$now,$node,$held,!$unknown && !$miner['payoutLocked']
+                && $result['pool']['treasury']['unknownRounds']===0
+                && $result['pool']['treasury']['canonicalStatus']==='ok');
         $result['miner'] = $miner;
         if ($unknown) $result['status'] = 'partial';
         return $result;
