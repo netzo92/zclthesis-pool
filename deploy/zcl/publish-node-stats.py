@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Publish an allowlisted, read-only view of the local node; never expose RPC."""
 import datetime as dt
+from decimal import Decimal
 import json
 import math
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -11,12 +13,36 @@ import tempfile
 PUBLIC = Path('/var/lib/zcl-public/api')
 CLI = ['/usr/sbin/runuser', '-u', 'zclnode', '--', '/opt/zclassic/zclassic-cli', '-datadir=/var/lib/zclassic', '-rpcclienttimeout=15']
 
-def rpc(method, *args):
-    reply = subprocess.run(CLI + [method, *map(str, args)], text=True, capture_output=True, timeout=20, check=True)
-    return json.loads(reply.stdout)
+def rpc(method, *args, exact=False, timeout=20):
+    reply = subprocess.run(CLI + [method, *map(str, args)], text=True, capture_output=True, timeout=timeout, check=True)
+    return json.loads(reply.stdout, parse_float=Decimal if exact else float)
 
 def timestamp(epoch):
     return dt.datetime.fromtimestamp(epoch, dt.timezone.utc).isoformat().replace('+00:00', 'Z')
+
+def next_block_subsidy(height, tip_hash, observed, rpc_call=None):
+    """A conditional next-height subsidy, never a miner balance or fee forecast."""
+    result = {'schemaVersion': 1, 'asset': 'ZCL', 'status': 'unavailable',
+              'generatedAt': observed, 'tipHeight': height, 'tipHash': tip_hash,
+              'height': height + 1 if type(height) is int else None,
+              'subsidyZat': None, 'basis': 'next-height-subsidy-excluding-transaction-fees'}
+    call = rpc_call or rpc
+    try:
+        if type(height) is not int or not 0 <= height < 2147483647 or not isinstance(tip_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', tip_hash):
+            raise ValueError('Invalid tip context')
+        subsidy = call('getblocksubsidy', height + 1, exact=True, timeout=5)['miner']
+        if isinstance(subsidy, bool) or not isinstance(subsidy, (int, Decimal)):
+            raise ValueError('Exact subsidy unavailable')
+        zat = Decimal(subsidy) * 100000000
+        if not zat.is_finite() or zat != zat.to_integral_value() or not 0 <= zat <= 2100000000000000:
+            raise ValueError('Invalid subsidy')
+        current = call('getblockchaininfo', timeout=5)
+        if type(current['blocks']) is not int or current['blocks'] != height or current['bestblockhash'] != tip_hash:
+            raise ValueError('Tip changed during observation')
+        result.update(status='ok', subsidyZat=str(int(zat)))
+    except (subprocess.SubprocessError, ArithmeticError, ValueError, KeyError, OSError, TypeError):
+        pass  # Failure only removes the projection context; basic node stats still publish.
+    return result
 
 def atomic_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
@@ -54,7 +80,8 @@ def main():
             'node': {'synced': synced, 'connections': network['connections'], 'verificationProgress': progress,
                 'softwareVersion': network.get('subversion', str(network.get('version', 'unknown'))),
                 'bootstrapValidation': 'unknown'},
-            'mining': {'difficulty': mining.get('difficulty'), 'networkSolps': mining.get('networksolps')},
+            'mining': {'difficulty': mining.get('difficulty'), 'networkSolps': mining.get('networksolps'),
+                'nextBlockSubsidy': next_block_subsidy(height, chain['bestblockhash'], timestamp(now.timestamp()))},
             'source': 'https://pool.zclthesis.com'}
         provenance = Path('/etc/zcl-pool/node-provenance.json')
         if provenance.exists():
