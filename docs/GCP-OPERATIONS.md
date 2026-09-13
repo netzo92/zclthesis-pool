@@ -365,3 +365,19 @@ Run `php tests/payout/miner-stats.php` for synthetic SQLite regression coverage
 of exact monetary categories, reservation/confirmation evidence, threshold
 progress, checksum validation, ZCL/address isolation, window boundaries,
 native work scaling, stale data, accounting holds and broken journal links.
+
+The dashboard API was deployed from `0302954` on September 13, 2026 at 02:07 UTC,
+with the cache owned by `www-data` at mode 0700. Caddy reloaded after validation;
+node and Stratum stayed active. The live address lookup returned exact zero
+credited/available rewards and a 5,000,000-zatoshi threshold. Network-share
+estimates advanced with real accepted work. No wallet or payment operation was
+invoked by this deployment or its checks.
+
+All 58 synthetic accounting checks passed. Live HTTP verification covered valid
+lookup, short-cache reuse, query validation, POST rejection, empty HEAD bodies,
+private/PHP/admin path denial and absence of cookies/private output fields.
+The webminer UI from `8ec2721` passed 46 tests and live EN/ES desktop/mobile
+checks in a separate headless browser. Its actual 30-second refresh advanced
+the graph and keyboard-accessible observation selector. That isolated browser
+attempted zero GPU workers or mining connections. Eight deployed assets matched
+reviewed source, including the unchanged mining/consent implementation.
