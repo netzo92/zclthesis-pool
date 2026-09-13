@@ -48,13 +48,33 @@ start false, and the single ZCL coin starts disabled.
 | ZCL payout, 1 minute | Durable shielding, miner payments and operator remittance |
 | Pool status, 1 minute | Atomically publish allowlisted readiness flags and parameters |
 
-Worker and payout timers first run one second after timer activation, including
-when private activation happens long after boot. Each next run is scheduled after
-the preceding service finishes (15 seconds for the worker, one minute for payouts),
-so slow RPC calls do not overlap executions. After installing or changing these
-units, run `systemctl daemon-reload` and restart both timers. Verify successful
-first and repeated service executions and a finite next trigger; an active timer
-alone does not prove the accounting or payout jobs ran.
+RPC authentication, worker and payout timers first run one second after timer
+activation, including when activation happens long after boot. Each next run is
+scheduled after the preceding service finishes (15 seconds for the worker, one
+minute for authentication and payouts), so slow calls do not overlap executions.
+After installing or changing a unit, run `systemctl daemon-reload` and restart
+only its corresponding timer. Verify successful first and repeated service
+executions and a finite next trigger; an active but elapsed timer does not prove
+that its job ran. A transient missing next trigger while a oneshot is running is
+normal; recheck after it finishes.
+
+Restarting `zcl-rpc-cookie.timer` schedules a real credential synchronization one
+second later. Its service reads the local node cookie when present, otherwise
+the configured RPC username/password, and sends one SQL update over stdin to the
+local `yiimp_zcl` database: only `coins.rpcuser` and `coins.rpcpasswd` for
+`id=1 AND symbol='ZCL'`. It does not change balances, payment gates, wallet keys,
+Stratum configuration or node configuration, and it calls no node RPC method.
+Repeating it with unchanged source credentials leaves those values unchanged.
+A rotated daemon cookie becomes available to database consumers after the next
+successful synchronization. Source-read or validation failures do not call SQL.
+A failed or timed-out SQL call is reported as a failure and the assignment is
+safe to repeat, even if an acknowledgment was lost after it committed.
+
+The authentication service requires MariaDB and the node, so activating it can
+start those dependencies during maintenance. Verify that both are intended to be
+running before restarting its timer; keep it stopped during an intentional node
+pause. `tests/public-data/README.md` documents isolated credential-synchronization
+tests that use only synthetic credentials and mocked SQL execution.
 
 Do not run the generic queue initializer, generic/legacy payout sender, exchange,
 rental, purchase or automated share-pruning jobs. The scoped worker retains share
@@ -258,3 +278,17 @@ public history files returned valid data, and the 800-trade backfill's SHA-256
 matched its manifest. All 26 focused Python tests passed, including the existing
 transaction exporter tests. Existing node, Stratum and browser-bridge services
 remained active; no new VM, GPU or public write endpoint was introduced.
+
+
+## September 13 operations hardening
+
+The boot and chain disks now both have `autoDelete=false`; deleting the VM will
+not automatically delete these disks. This protects against that deletion path,
+not against disk loss or corruption. The read-only audit found no failed units,
+ample free disk/RAM, and loopback-only RPC, SQL, analytics and bridge listeners.
+
+The RPC authentication timer's boot-relative schedule had no next invocation
+after late activation. The activation-relative schedule above fixes that case.
+The public availability display also has bounded requests and independent expiry.
+[Private recovery coverage](../../docs/PRIVATE-BACKUP-DESIGN.md) records the
+remaining backup design; it is not an installed off-VM backup or a restore proof.
