@@ -32,6 +32,12 @@ history. `official-client-source.json` pins the primary client documentation:
 Both sources quote USDT per ZCL. These are exchange prices, separate from the
 CoinGecko USD market-cap launch reference on the thesis homepage.
 
+The volume collector was deployed September 13, 2026 UTC from source commit
+`7cccf18` on the existing pool VM. Its first verified live export held 936 trades,
+4,882.7379 ZCL and 1,677.913029886 USDT. An independent read-only SQLite audit
+recomputed both totals from every stored execution and passed the integrity check.
+Automatic timer checkpoints advanced on subsequent minutes. No new VM was added.
+
 ## Observed trade volume
 
 `deploy/zcl/record-volume.py` collects actual public `getTrades` executions for
