@@ -173,6 +173,15 @@ mixing branches; a changed tip or failed collection retains the prior artifact.
 Consumers must mark it stale rather than assume it remains current.
 
 The payload distinguishes coinbase transactions, visible output sums (including
-change), shielded-component presence, and local mempool first-seen times. It does
+change), shielded-component presence, and local mempool entry times (which can reset on readmission). It does
 not infer hidden parties, payment amounts, exchange ownership, or miner earnings.
 Validation: `python3 -m unittest discover -s deploy/zcl/tests -v`.
+
+Transaction exporter deployment verified September 13, 2026 UTC: source `2167a45`
+installed in `/opt/zcl-transactions`; timer enabled and public Caddy route active.
+The actual node dry run produced a roughly 52 KiB artifact with 100 confirmed
+transactions (4 excluding rewards) and 4 mempool entries at height 3,248,586.
+Cold collection took 1.04 seconds and a warm collection 0.10 seconds. The installed
+service then published fresh observations with all existing node, Stratum and
+browser-bridge services active. All 11 exporter tests passed. These are dated
+validation observations, not fixed current pool/network figures.
