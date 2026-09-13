@@ -294,3 +294,74 @@ future result.
 Final validation passed 105 PHP assertions, eight publisher tests and the website's
 92 Node tests. Live English/Spanish checks on both pages at mobile and desktop
 sizes matched reviewed assets and rendered all three verified values correctly.
+
+## Public miner dashboard data
+
+The exact `/api/miner.json` route runs
+[`public/miner.php`](../deploy/zcl/public/miner.php) through the existing PHP-FPM
+socket. Only this route reaches the standalone script; it does not initialize
+the admin web application, sessions, queue or wallet RPC. The optional `address`
+query accepts a checksum-validated mainnet t1/t3 address. Its database lookup is
+case-sensitive and constrained to ZCL. Missing addresses return a verified
+`not-found` state; invalid requests receive 400. Omit the parameter for pool-only
+work statistics. This is public reporting by payout address, not proof of wallet
+ownership; everyone using the same payout address shares its totals.
+
+Before enabling the route, create `/var/cache/zcl-miner-stats` owned by the
+PHP-FPM user (`www-data`), mode 0700. The script keeps at most 512 short-lived
+hashed cache entries, reuses results for 10 seconds, removes expired entries,
+permits one database reader at a time, and limits cache misses to four per
+second. Busy/capacity/error responses return sanitized 503 data with null
+financial values. Queries use bound parameters, a read-only transaction,
+MariaDB's two-second per-statement limit and a maximum of 10,000 selected rows.
+PHP's eight-second execution limit is additional; it is not a wall-clock I/O
+deadline. No database migration, additional service or VM is required.
+
+[`ZclMinerStats`](../yiimp2/services/ZclMinerStats.php) reports exact integer
+zatoshi strings: current `availableZat` is the account's mature, unreserved
+balance; `immatureZat` and `awaitingCreditZat` are separate retained earnings;
+`creditedZat` is historical retained status-2 credit, already represented in
+balances, reservations or payments. `earnedZat` sums the retained status-0/1/2
+net allocations. The allocator already deducted the fee and any configured
+account donation; the dashboard must not deduct 0.8% again. Do not sum these
+display categories to invent an additional wallet balance.
+
+`paidZat` requires the immutable miner payment item, matching payout amount,
+completed payout and batch, and exactly one confirmed send operation whose
+transaction ID matches the payout. Shielding confirmation alone is insufficient.
+Incomplete reservations remain `pendingPayoutZat`, including held payments.
+Missing journal links, unsupported states and mismatched payment evidence fail
+closed. Accounting holds and inconsistent earning evidence return partial
+status. A preserved balance or paid record under a reorg hold is ledger history,
+not a claim that the disputed funds are currently spendable.
+
+`thresholdZat` is the greater of the configured pool minimum and the account
+threshold. Progress uses only the available balance and is capped at 100%.
+`thresholdReached` is not a payment promise: account locks, holds, maturity,
+reserve funding and the coordinator's checks still apply. A payment reservation
+reduces available balance immediately; the dashboard shows the reserved amount
+separately until confirmed.
+
+Five-minute and one-hour work windows sum accepted, coin-scoped stored share
+difficulty, using `(now - duration, now]`. These rows aggregate protocol events,
+so row counts must not be labeled accepted share counts. The native Equihash
+target and stored `assignedDifficulty / 256` convention imply approximately
+65,537 expected solutions per stored weight unit; dividing by the window seconds
+gives `estimatedSolps`. This is a statistical work estimate, not earned ZCL.
+`networkPercent` divides it by a fresh, synced own-node `networkSolps` observation,
+which itself estimates chain work over the latest 120 blocks. Stale, invalid or
+missing network data yields a null percentage. Pool gross rewards continue to
+come from the separately timestamped `pool.mined` snapshot.
+
+Coverage is explicitly `retained-pool-ledger`. Generic upstream stats cleanup
+can prune historical credited earnings if someone enables that schedule; the
+deployed dedicated ZCL worker does not invoke it. Neither a lifetime earnings
+claim nor historical balances should be reconstructed from these records.
+Earning creation, maturity and payout reservation timestamps are not credit or
+receipt timestamps. The API reports `history.available: false`; the browser can
+plot actual timestamped observations collected since the dashboard opened.
+
+Run `php tests/payout/miner-stats.php` for synthetic SQLite regression coverage
+of exact monetary categories, reservation/confirmation evidence, threshold
+progress, checksum validation, ZCL/address isolation, window boundaries,
+native work scaling, stale data, accounting holds and broken journal links.
