@@ -90,6 +90,12 @@ If the pool reserve cannot cover network fees, the batch waits for funding.
 No recipient amounts are halved and no network fee is silently subtracted from
 miner credit. The ledger retains all payout and operation records.
 
+Public pool-mined totals are a separate read-only report of gross accepted
+coinbase rewards, including immature blocks. They must not be interpreted as
+credited balances or completed payouts. See
+[pool-mined totals](GCP-OPERATIONS.md#pool-mined-zcl-totals) for exact reward,
+canonical-chain, time-window and unavailable-data semantics.
+
 ## Operator fee remittance
 
 An additional strict boolean enables remittance through the same coordinator:

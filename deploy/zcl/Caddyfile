@@ -52,7 +52,7 @@ pool.zclthesis.com {
       header Cache-Control "public, max-age=30"
       file_server
     }
-    @static path / /index.html /es/ /es/index.html /style.css /status.js
+    @static path / /index.html /es/ /es/index.html /style.css /status.js /pool-mined.js /pool-mined.css
     handle @static {
       root * /opt/zcl-pool/source/deploy/zcl/public
       file_server

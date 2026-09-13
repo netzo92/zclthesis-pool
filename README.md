@@ -71,6 +71,13 @@ backfill support future charts; see [price history](data/price-history/README.md
 and the [production runbook](deploy/zcl/PRODUCTION.md#durable-nonkyc-price-history).
 
 `publish-node-stats.py` publishes allowlisted read-only fields once a minute.
+The same public dashboard shows ZCL mined by this pool across its retained history,
+the rolling last 24 hours, and the rolling last hour. The existing pool-status
+publisher adds exact gross block rewards with mature/immature breakdowns after
+matching reward journals and current canonical headers. Unknown observations
+remain partial or unavailable. See [pool-mined totals](docs/GCP-OPERATIONS.md#pool-mined-zcl-totals)
+for units, coverage and verification limits. Both English and Spanish pages poll
+the existing status feed every 30 seconds while visible.
 Caddy serves only explicitly listed static routes and sanitized JSON. Public wallet
 RPC, database, supervisor and admin console remain private. Public mining uses
 TCP 2192 or the restricted HTTPS WebSocket bridge. The private admin interface is

@@ -14,8 +14,9 @@ async function refresh(){
   try{
     const response=await fetch('/api/pool.json',{cache:'no-store'});if(!response.ok)throw Error('Unavailable');
     const pool=await response.json();
+    if(pool.asset==='ZCL'&&pool.schemaVersion===1)window.ZclPoolMined?.update(pool.mined);else window.ZclPoolMined?.failure();
     poolState(pool.asset==='ZCL'&&pool.schemaVersion===1&&fresh(pool)&&pool.acceptingMiners===true&&pool.feePercent===0.8&&fresh(node)&&node.node?.synced===true);
-  }catch{poolState(false);}
+  }catch{poolState(false);window.ZclPoolMined?.failure();}
 }
 refresh();setInterval(()=>{if(!document.hidden)refresh();},30000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});

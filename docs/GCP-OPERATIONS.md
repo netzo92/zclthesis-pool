@@ -222,3 +222,62 @@ The final full rich-list export completed successfully at 15:59:45 UTC:
 
 The exporter removed its temporary private snapshot and recovered database after
 atomic publication. The normal two-hour schedule remains enabled.
+
+## Pool-mined ZCL totals
+
+[`zcl-worker/mined`](../yiimp2/commands/ZclWorkerController.php) is a read-only
+summary of this pool's retained ZCL block and immutable reward-round ledger.
+[`ZclMinedStats`](../yiimp2/services/ZclMinedStats.php) checks each accepted
+candidate against the local node's current `getblockheader` result. It sums exact
+integer `zcl_reward_rounds.reward_sat` amounts only when the block ID, coin ID,
+hash, recorded reward and allocation conservation agree. It counts each
+journaled hash once. The summary does not use network emission, miner shares,
+deposits, estimated earnings, or wallet balances as mined coins.
+
+The existing minute-based
+[`publish-pool-status.py`](../deploy/zcl/publish-pool-status.py) adds a sanitized
+`mined` object to `/api/pool.json`. Its `allTime`, `last24h` and `lastHour` windows
+contain `rewardZat` (an integer string), `blocks`, `matureRewardZat`,
+`matureBlocks`, `immatureRewardZat`, and `immatureBlocks`. Rewards are gross
+coinbase receipts, including their transaction fees, before the pool's 0.8%
+allocation fee. They are not amounts already paid to miners or to the owner.
+An accepted block remains in the immature portion until the ledger category is
+`generate` and the live node reports at least 101 confirmations.
+
+The rolling windows use `(now - duration, now]` in UTC and `blocks.time`:
+Stratum's recorded find time, or the coinbase timestamp when the existing worker
+recovers a block from wallet transaction history. `allTime` means the entire
+retained pool ledger. `coverageStartedAt` remains null because the ledger has no
+durable creation-time marker; it must not be replaced with an invented launch
+timestamp. The summary explicitly identifies this as `retained-pool-ledger`
+coverage and `pool-recorded-time` windows.
+
+Live headers reporting negative confirmations are excluded. Records marked
+orphaned or rejected are also checked against the live node; if they have returned
+to the canonical chain, they remain unknown until accounting is reconciled.
+Candidates still awaiting validation, missing/malformed reward rounds,
+unavailable headers and journal rows missing their block records increase
+`unknownBlocks`; `status: partial` then reports known amounts only. An accounting
+hold also yields `partial`. A failed database/readiness check, invalid publisher
+payload, or more than 10,000 retained rows produces `status: unavailable` with
+null windows, never fabricated zeroes. Canonical-header work has a 20-second
+budget and the read-only CLI has a 30-second outer timeout. These bounds must be
+revisited before the retained ledger approaches the row limit.
+
+Only public aggregates pass the publisher allowlist. No addresses, account IDs,
+SQL details, exception messages or wallet metadata enter this feed. The command
+does not credit balances or issue wallet mutations, and failure of the mined
+summary does not change public mining admission or payout gates. The existing
+pool-status timer handles updates without adding a service or VM.
+
+Focused synthetic validation:
+
+```sh
+php tests/payout/mined-stats.php
+python3 -m unittest deploy/zcl/tests/test_publish_pool_status.py -v
+```
+
+These cover exact sums, UTC boundaries, immature/mature transitions, duplicate
+hashes, reorged headers, missing/invalid records, unknown outcomes, holds,
+resource bounds, and publisher allowlisting. They do not claim a mainnet block
+has been mined or a mainnet payment has occurred.
