@@ -150,3 +150,29 @@ The read-only dashboard on loopback8091 is available through the existing operat
 IAP SSH connection (Mac local18091). No firewall port or public admin route was
 added. Existing pool admin8090, mining ports, payouts and fees are independent.
 Credential files and visitor data remain outside the public repositories.
+
+## Public transaction observations
+
+Install `publish-transactions.py` into the separate root-owned
+`/opt/zcl-transactions/` directory and the `zcl-transactions.service` and `.timer`
+units into `/etc/systemd/system/`. The timer runs 30 seconds after each completed
+collection. It uses the installed node CLI as `zclnode`, with an allowlist of
+public chain/mempool RPCs. No wallet RPC, transaction index, node restart, reindex,
+mining process, or additional VM is required. Version 2.1.2-beta6 supports decoded
+`getblock(hash, 2)` and integer `valueZat` outputs.
+
+The private sanitized cache is `/var/lib/zcl-transactions/cache.json` (0600;
+directory 0700). It retains metadata for 100 canonical blocks and at most 100
+transactions total. Public output is atomically replaced at
+`/var/lib/zcl-public/api/transactions.json` (0644) and explicitly served by Caddy
+with a ten-second cache. Caddy continues to reject arbitrary RPC/private paths.
+Collections are bounded to 60 seconds and 16 MiB per RPC, with a 2 MiB public
+artifact limit; systemd adds a 90-second timeout, 20% CPU quota, and 128 MiB memory
+limit. Warm collections reuse decoded blocks. Ancestry and final tip checks avoid
+mixing branches; a changed tip or failed collection retains the prior artifact.
+Consumers must mark it stale rather than assume it remains current.
+
+The payload distinguishes coinbase transactions, visible output sums (including
+change), shielded-component presence, and local mempool first-seen times. It does
+not infer hidden parties, payment amounts, exchange ownership, or miner earnings.
+Validation: `python3 -m unittest discover -s deploy/zcl/tests -v`.

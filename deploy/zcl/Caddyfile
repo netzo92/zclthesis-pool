@@ -35,6 +35,11 @@ pool.zclthesis.com {
       root * /opt/zcl-pool/webminer/public
       file_server
     }
+    handle /api/transactions.json {
+      root * /var/lib/zcl-public
+      header Cache-Control "public, max-age=10"
+      file_server
+    }
     @api path /api/node.json /api/pool.json /api/richlist/zcl.json
     handle @api {
       root * /var/lib/zcl-public
