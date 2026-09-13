@@ -281,3 +281,16 @@ These cover exact sums, UTC boundaries, immature/mature transitions, duplicate
 hashes, reorged headers, missing/invalid records, unknown outcomes, holds,
 resource bounds, and publisher allowlisting. They do not claim a mainnet block
 has been mined or a mainnet payment has occurred.
+
+Deployment on September 13, 2026 installed the scoped public/status source from
+`ba968af`, retaining backups of replaced files. Caddy reloaded after validation;
+the node, Stratum and existing status timer remained active. No schema migration,
+fee/recipient edit or wallet mutation was needed. The read-only live result at
+01:55:47 UTC was `ok`: zero blocks and zero ZCL in all three windows, zero unknown
+blocks, zero excluded orphans and no accounting hold. The public endpoint and
+homepage proxy agreed. This observed zero is not evidence of a payout or a fixed
+future result.
+
+Final validation passed 105 PHP assertions, eight publisher tests and the website's
+92 Node tests. Live English/Spanish checks on both pages at mobile and desktop
+sizes matched reviewed assets and rendered all three verified values correctly.
