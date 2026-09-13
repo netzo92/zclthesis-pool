@@ -4,6 +4,8 @@ namespace app\services;
 use PDO;
 use RuntimeException;
 
+require_once __DIR__.'/ZclTreasuryStats.php';
+
 /** Public, address-scoped, read-only pool accounting and accepted-work reporting. */
 final class ZclMinerStats
 {
@@ -112,7 +114,8 @@ final class ZclMinerStats
         $held = count($this->rows('SELECT coin_id FROM zcl_accounting_holds WHERE coin_id=? LIMIT 1', [$coin])) > 0;
         $result = ['schemaVersion'=>1,'asset'=>'ZCL','generatedAt'=>gmdate('Y-m-d\TH:i:s\Z',$now),
             'status'=>$held ? 'partial' : 'ok','address'=>$address,'network'=>$network,
-            'pool'=>['mined'=>$mined,'work'=>$this->work($coin,null,$now,$network)],'miner'=>null,
+            'pool'=>['mined'=>$mined,'work'=>$this->work($coin,null,$now,$network),
+                'treasury'=>(new ZclTreasuryStats($this->db))->snapshot($coin,$now,$held,$mined)],'miner'=>null,
             'accountingBasis'=>'retained-pool-ledger',
             'history'=>['basis'=>'session-observations-only','available'=>false]];
         if ($address === null) return $result;

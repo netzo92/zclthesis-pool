@@ -70,6 +70,7 @@ try {
         PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false,
         PDO::ATTR_STRINGIFY_FETCHES=>true,PDO::ATTR_TIMEOUT=>2]);
     $db->exec('SET SESSION max_statement_time=2');
+    $db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
     $db->exec('SET TRANSACTION READ ONLY');
     $db->beginTransaction();
     $node=publicJson('/var/lib/zcl-public/api/node.json');
