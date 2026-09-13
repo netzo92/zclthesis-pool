@@ -1,0 +1,25 @@
+{
+  "file": "normalized-trades.json",
+  "sha256": "bf3a108072893689c1d62224000fc9d4c4369503a07356e582170734aab35304",
+  "records": 800,
+  "pages": 1,
+  "limitPerPage": 1000,
+  "pageBudget": 4,
+  "exhaustedReturnedPages": true,
+  "firstTradeAt": "2026-09-12T03:23:25.866Z",
+  "lastTradeAt": "2026-09-13T00:27:59.480Z",
+  "requestedFrom": "2026-09-12T03:23:13Z",
+  "requestedTill": "2026-09-13T00:28:06Z",
+  "retrievedAt": "2026-09-13T00:28:08.453Z",
+  "precedingTrade": {
+    "tradeId": "6aa4c48dae7cdf206ea29651",
+    "pair": "ZCL/USDT",
+    "priceQuote": "0.29608",
+    "quantityBase": "0.8295",
+    "quote": "USDT",
+    "base": "ZCL",
+    "triggeredBy": "sell",
+    "tradedAt": "2026-09-12T03:18:37.150Z",
+    "tradedAtMs": 1789183117150
+  }
+}

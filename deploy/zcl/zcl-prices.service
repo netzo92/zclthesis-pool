@@ -1,0 +1,21 @@
+[Unit]
+Description=Record durable NonKYC ZCL/USDT price observations
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=zcl-prices
+ExecStart=/usr/bin/python3 /opt/zcl-prices/record-prices.py
+TimeoutStartSec=45
+Nice=15
+CPUQuota=10%
+MemoryMax=64M
+UMask=0077
+StateDirectory=zcl-prices
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/zcl-prices /var/lib/zcl-public/api/prices

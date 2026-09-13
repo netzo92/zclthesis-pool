@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/NonKYCExchange/NonKycPythonApiClient",
+  "commit": "3905051ab23bf586f4e05f30a5764d8f2bdca8e9",
+  "sourceURL": "https://raw.githubusercontent.com/NonKYCExchange/NonKycPythonApiClient/3905051ab23bf586f4e05f30a5764d8f2bdca8e9/nonkyc.py",
+  "sha256": "f6779b92f3401b9038049ba8d9ffb27d741eedc175fa4a9cf369782714d58937",
+  "publicHistoryFunction": "ws_get_trade_history",
+  "websocketEndpoint": "wss://api.nonkyc.io",
+  "documentedMaxLimit": 1000
+}

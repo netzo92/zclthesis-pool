@@ -185,3 +185,59 @@ Cold collection took 1.04 seconds and a warm collection 0.10 seconds. The instal
 service then published fresh observations with all existing node, Stratum and
 browser-bridge services active. All 11 exporter tests passed. These are dated
 validation observations, not fixed current pool/network figures.
+
+## Durable NonKYC price history
+
+`record-prices.py` fetches the public NonKYC `ZCL/USDT` ticker every UTC minute,
+independently of website traffic. Install it root-owned at
+`/opt/zcl-prices/record-prices.py` and install `zcl-prices.service` and `.timer` in
+`/etc/systemd/system/`. Use a dedicated system user/group `zcl-prices` with no login;
+it owns `/var/lib/zcl-prices` (0700) and the public subdirectory
+`/var/lib/zcl-public/api/prices` (0755). Enable the timer after `daemon-reload` and
+start the service once to validate the initial observation. The service needs
+Python's standard library and outbound HTTPS only; it does not access the node,
+wallet, pool database, credentials, or analytics.
+
+The complete archive is `/var/lib/zcl-prices/prices.sqlite3` (0600), outside the
+source checkout and Cloud Run's ephemeral filesystem. SQLite uses WAL and FULL
+synchronous commits. No observations are pruned. One UTC-minute bucket is unique;
+a same-minute restart preserves the existing observation without a second fetch.
+Missing scheduled intervals remain timestamp gaps. Failed HTTP, network or data
+validation requests get explicit failure records, never zero or invented prices.
+
+Prices, 24-hour quote volumes and change percentages retain the provider's exact
+decimal strings. Each successful record keeps its collection timestamp and the
+exchange's last-trade timestamp separately, as well as market pause status. An
+unchanged price is another observation, not a new execution. `status` describes
+recorder freshness only; a fresh collection can report an old last trade. These
+USDT prices do not replace the homepage's CoinGecko USD market-cap reference.
+
+The exact public route `/api/prices/zcl-usdt.json` serves an atomic, bounded view
+of the last seven days (at most 10,080 combined observations/failures; 4 MiB cap).
+Its `columns` names describe the compact `samples` rows. Older data remains in
+SQLite for future charts and exports. Check both `generatedAt` and
+`lastSuccessAt`; an old artifact must not be treated as a healthy live recorder.
+Daily SQLite online backups rotate three files in the private `backups/` directory.
+These protect against some local database/upgrade mistakes; they share the same
+persistent disk and are not an off-site backup. Copy an online backup, rather
+than copying only a live WAL database file, when exporting the complete archive.
+
+The independently retrieved public trade backfill lives under
+`/var/lib/zcl-prices/backfill/nonkyc-20260913/` and in the public repository's
+[data/price-history](../../data/price-history/README.md). Its normalized JSON is
+served only at `/api/prices/zcl-usdt-launch-trades.json`. It retains 800 actual
+provider-returned trade IDs since launch through the fixed September 13 00:28:06
+UTC cutoff, with raw responses and verified hashes. It remains separate from
+minute observations. Same-millisecond trades are distinct and must not be
+collapsed by timestamp. The backfill is a dated file, not a continuing trade feed.
+
+The timer is persistent and resumes after reboot without synthesizing missed
+points. The service has a 45-second limit, 10% CPU quota and 64 MiB memory cap.
+HTTP uses a fixed URL, no redirects, a ten-second deadline and a 256 KiB response
+limit. Verify scheduled growth and storage with:
+
+```sh
+sudo systemctl status zcl-prices.timer --no-pager
+sudo journalctl -u zcl-prices.service -n 15 --no-pager
+sudo -u zcl-prices python3 -c 'import sqlite3; c=sqlite3.connect("file:/var/lib/zcl-prices/prices.sqlite3?mode=ro",uri=True); print(c.execute("SELECT count(*), min(observed_ms), max(observed_ms) FROM observations").fetchone())'
+```

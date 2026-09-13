@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "past-final",
+      "file": "coverage-past-final.json",
+      "sha256": "cd5f39f70646fa2ce788ece758ccbfc5bd467f05a9c63575cf5bfe2fc3b40b48",
+      "request": {
+        "id": 1,
+        "method": "getTrades",
+        "params": {
+          "symbol": "ZCL/USDT",
+          "limit": 1,
+          "offset": 800,
+          "sort": "ASC",
+          "from": "2026-09-12T03:23:13Z",
+          "till": "2026-09-13T00:28:06Z"
+        }
+      },
+      "receivedAt": "2026-09-13T00:29:12.972Z",
+      "ids": [],
+      "error": null
+    },
+    {
+      "name": "offset-one",
+      "file": "coverage-offset-one.json",
+      "sha256": "841a922e7e63431c28803ac259bb98ab3fe4e4b29c0084308d00ce6d36ce6e6a",
+      "request": {
+        "id": 2,
+        "method": "getTrades",
+        "params": {
+          "symbol": "ZCL/USDT",
+          "limit": 1,
+          "offset": 1,
+          "sort": "ASC",
+          "from": "2026-09-12T03:23:13Z",
+          "till": "2026-09-13T00:28:06Z"
+        }
+      },
+      "receivedAt": "2026-09-13T00:29:13.176Z",
+      "ids": [
+        "6aa4c648ae7cdf206ea2a4d3"
+      ],
+      "error": null
+    },
+    {
+      "name": "latest",
+      "file": "coverage-latest.json",
+      "sha256": "cd66a2b601609521882029ce545489e4ada36eee3a130c7ab647660660eea15a",
+      "request": {
+        "id": 3,
+        "method": "getTrades",
+        "params": {
+          "symbol": "ZCL/USDT",
+          "limit": 1,
+          "offset": 0,
+          "sort": "DESC",
+          "from": "2026-09-12T03:23:13Z",
+          "till": "2026-09-13T00:28:06Z"
+        }
+      },
+      "receivedAt": "2026-09-13T00:29:13.380Z",
+      "ids": [
+        "6aa5ee0f3faaea411c39c6fc"
+      ],
+      "error": null
+    }
+  ],
+  "conclusion": "Offset pagination and the last returned trade match the fixed interval. No records remain after offset 800. This verifies the API-returned interval, not exchange completeness."
+}

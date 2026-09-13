@@ -31,3 +31,8 @@ web/yaamp/.idea/
 .env
 
 __pycache__/
+
+# Generated price-recorder databases and online backups stay on the VM.
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

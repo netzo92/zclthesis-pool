@@ -63,6 +63,13 @@ rechecks that the snapshot block is canonical before replacing the public file.
 Failures retain the last verified file. Raw snapshots contain sensitive local
 wallet state and must never be uploaded or served.
 
+`record-prices.py` records the public NonKYC ZCL/USDT ticker every minute in a
+durable SQLite archive on the existing VM, independent of website visits. It
+preserves exact prices, collection/trade timestamps, failures, and daily backups.
+A bounded seven-day JSON export and a separate verified launch-period trade
+backfill support future charts; see [price history](data/price-history/README.md)
+and the [production runbook](deploy/zcl/PRODUCTION.md#durable-nonkyc-price-history).
+
 `publish-node-stats.py` publishes allowlisted read-only fields once a minute.
 Caddy serves only explicitly listed static routes and sanitized JSON. Public wallet
 RPC, database, supervisor and admin console remain private. Public mining uses
