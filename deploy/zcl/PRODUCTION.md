@@ -304,3 +304,22 @@ verified zero receipts and allocations, consistent with zero pool blocks.
 The timer from `3414842` ran successfully at 18:11:54 and again at 18:13:56 UTC,
 with exit status zero and a finite next trigger. MariaDB, node, Stratum, Caddy
 and analytics remained active. These are dated observations, not an uptime SLA.
+
+Conditional next-block allocation source `894d468` was deployed as two scoped
+PHP service files, with the new helper installed before its caller. Both passed
+the VM's PHP syntax check; old files and the hash manifest are retained in
+`/opt/zcl-pool/backups/projection-894d468`. The pool source checkout was not
+blindly updated and no mining service was restarted. The existing public node
+publisher supplies the exact next-height subsidy from source `5dca72d`.
+
+At 18:20:39 UTC the address report returned a verified conditional allocation
+of 38,750,000 zatoshis from a 39,062,500-zatoshi subsidy, with a 312,500-zatoshi
+pool fee. Actual credited rewards, available funds and treasury receipts were
+zero. Backend validation passed 920 projection, 117 treasury and 58 miner
+checks with no ledger writes; independent review and live English/Spanish
+desktop/mobile UI checks passed. The full contract and evidence boundaries are
+in [conditional allocation](../../docs/ZCL-ROUND-PROJECTION.md).
+
+The actual browser bridge unit is `zcl-miner-bridge.service`; it was active with
+zero restarts when checked before the projection installation. The credential job also completed
+successfully at 18:18:59 UTC and its timer retained a finite next invocation.
