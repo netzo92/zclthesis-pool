@@ -40,7 +40,7 @@ pool.zclthesis.com {
       header Cache-Control "public, max-age=10"
       file_server
     }
-    @priceHistory path /api/prices/zcl-usdt.json /api/prices/zcl-usdt-launch-trades.json
+    @priceHistory path /api/prices/zcl-usdt.json /api/prices/zcl-usdt-launch-trades.json /api/prices/zcl-usdt-volume.json
     handle @priceHistory {
       root * /var/lib/zcl-public
       header Cache-Control "public, max-age=30"

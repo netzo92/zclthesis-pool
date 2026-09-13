@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect NonKYC executed trade volume every UTC minute
+
+[Timer]
+OnCalendar=*-*-* *:*:15 UTC
+Persistent=true
+AccuracySec=1s
+Unit=zcl-volume.service
+
+[Install]
+WantedBy=timers.target

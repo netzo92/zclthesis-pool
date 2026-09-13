@@ -1,0 +1,21 @@
+[Unit]
+Description=Retain NonKYC ZCL trades and observed hourly volume
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=zcl-prices
+ExecStart=/usr/bin/python3 /opt/zcl-prices/record-volume.py
+TimeoutStartSec=45
+Nice=15
+CPUQuota=10%
+MemoryMax=96M
+UMask=0077
+StateDirectory=zcl-prices
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/zcl-prices /var/lib/zcl-public/api/prices

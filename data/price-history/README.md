@@ -31,3 +31,83 @@ history. `official-client-source.json` pins the primary client documentation:
 
 Both sources quote USDT per ZCL. These are exchange prices, separate from the
 CoinGecko USD market-cap launch reference on the thesis homepage.
+
+## Observed trade volume
+
+`deploy/zcl/record-volume.py` collects actual public `getTrades` executions for
+ZCL/USDT each UTC minute at second 15. It imports the hash-pinned 800-trade backfill
+above once, then fills from its last verified cutoff to the present, including
+outages. It never adds rolling 24-hour ticker snapshots together. Each execution
+contributes its exact quantity in ZCL and `quantity × price` in USDT once, keyed by
+NonKYC's trade ID. Matching overlaps do not increase volume; changed data for an
+existing ID fails the transaction for review.
+
+Its private database is `/var/lib/zcl-prices/volume.sqlite3`. Raw normalized trades,
+exact decimal aggregates, verified query intervals, and attempt outcomes/page
+hashes are retained indefinitely. The public endpoint is
+`https://pool.zclthesis.com/api/prices/zcl-usdt-volume.json`: since-launch totals,
+execution count, first/last trade times, collection freshness, and at most 168
+hourly UTC buckets. Base volume is ZCL; quote volume is USDT, not a USD conversion.
+The all-time totals survive eviction of old hours from the public chart window.
+
+The cutoff is ten seconds behind the collection attempt. Fixed ascending queries
+request up to 1,000 trades per page and must exhaust pagination before advancing
+coverage. The normal interval is bounded to 12 hours with five minutes of overlap;
+a maximum of eight pages and a 30-second overall network deadline bound each run.
+If a page budget is exhausted, the next attempt halves its interval; successful
+small responses grow it again, so a temporarily busy interval does not permanently
+slow recovery. Whole-second overlap preserves progress even at the one-second
+minimum. The collector rejects reversed/duplicate page IDs, inconsistent timestamps,
+wrong markets, malformed numeric values, and changes to stored executions. TLS
+verification and a 512 KiB WebSocket response limit are supplied by
+`python3-websockets`; no exchange credentials are used.
+
+Coverage means that the exchange's returned pages were exhausted for that query
+interval. It does not independently establish that the exchange reports all trades,
+that historical retention is complete, or that reported volume is organic. A
+`covered: false` bucket is missing coverage, even if it has some observed trades;
+it must not be displayed as an observed zero. A covered empty hour really has no
+returned trades. The launch hour starts at the site's exact launch time, and the
+current hour is in progress through `checkedThrough`, not a completed full hour.
+Only contiguous coverage from launch with a successful recent query is `live`.
+Fetch failures retain previously observed trades and publish `stale`; holes are
+`partial`. Clients also need to age `checkedThrough` if the collector stops entirely.
+
+Three daily SQLite backups are retained in `/var/lib/zcl-prices/backups/volume-*.sqlite3`.
+They are local online backups on the same disk, not off-site disaster recovery.
+The volume process shares the existing VM and `zcl-prices` account; it adds no new
+GCP service or instance. The price-observation process and its database are separate.
+
+Deployment on the existing Debian pool VM, after copying this repository's files:
+
+```sh
+sudo apt-get install --yes --no-install-recommends python3-websockets
+sudo install -m 0644 deploy/zcl/record-volume.py /opt/zcl-prices/record-volume.py
+sudo install -m 0644 data/price-history/nonkyc-20260913/normalized-trades.json /opt/zcl-prices/normalized-trades.json
+sudo install -m 0644 deploy/zcl/zcl-volume.service /etc/systemd/system/zcl-volume.service
+sudo install -m 0644 deploy/zcl/zcl-volume.timer /etc/systemd/system/zcl-volume.timer
+sudo systemctl daemon-reload
+sudo systemctl start zcl-volume.service
+sudo systemctl enable --now zcl-volume.timer
+sudo systemctl status zcl-volume.timer --no-pager
+```
+
+The existing `zcl-prices` user must own `/var/lib/zcl-prices` (0700) and be able to
+write `/var/lib/zcl-public/api/prices`. Caddy's explicit public-file allowlist must
+include `/api/prices/zcl-usdt-volume.json` (see `deploy/zcl/Caddyfile`). Install the
+updated allowlist and validate/reload Caddy as part of deployment. Never expose the
+SQLite database, lock, or backups. The service uses a 45-second timeout, 96 MiB
+memory cap, and 10% CPU quota. A stale/partial run deliberately exits nonzero; the
+minute timer retries from retained coverage.
+
+Validation:
+
+```sh
+python3 -m unittest discover -s deploy/zcl/tests -p 'test_record_volume.py' -v
+```
+
+The tests cover immutable seed totals, precise launch exclusion, Decimal
+multiplication/sums, deduplication, conflicting-ID rollback, fixed pagination and
+exhaustion, failed-fetch retry/recovery, minimum-window progress and regrowth,
+missing versus zero-volume hours, hour boundaries, bounded chart retention,
+backup integrity, and file permissions.
