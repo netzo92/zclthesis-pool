@@ -292,3 +292,15 @@ after late activation. The activation-relative schedule above fixes that case.
 The public availability display also has bounded requests and independent expiry.
 [Private recovery coverage](../../docs/PRIVATE-BACKUP-DESIGN.md) records the
 remaining backup design; it is not an installed off-VM backup or a restore proof.
+
+
+Deployment evidence: readiness source `7e13d37` reports open admission in both
+languages when current feeds permit it. Treasury source `7328455` and GPU UI
+`0c68135` were installed without restarting mining services. Nine public assets
+matched committed source; both dashboards in both languages passed live mobile
+checks with zero mining attempts. At 18:10:58 UTC the treasury journal reported
+verified zero receipts and allocations, consistent with zero pool blocks.
+
+The timer from `3414842` ran successfully at 18:11:54 and again at 18:13:56 UTC,
+with exit status zero and a finite next trigger. MariaDB, node, Stratum, Caddy
+and analytics remained active. These are dated observations, not an uptime SLA.
