@@ -7,7 +7,7 @@
   const labels = es ? {
     checking: 'Consultando los bloques de nuestro pool…',
     live: 'Recompensas verificadas en la cadena actual.',
-    partial: 'Historial incompleto: solo se muestran recompensas verificadas. ≥ indica un mínimo conocido.',
+    partial: 'Contabilidad incompleta: solo se muestran recompensas verificadas. ≥ indica un mínimo conocido, incluido cero; las recompensas pendientes están excluidas.',
     unavailable: 'No se pueden verificar las recompensas del pool. Los guiones no significan cero.',
     stale: 'Datos desactualizados: los intervalos terminan en la última actualización indicada.',
     failed: 'No se pudo actualizar. Se conservan los últimos datos verificados y su fecha.',
@@ -19,7 +19,7 @@
   } : {
     checking: 'Checking blocks mined by our pool…',
     live: 'Rewards verified on the current chain.',
-    partial: 'Incomplete history: showing verified rewards only. ≥ marks a known minimum.',
+    partial: 'Incomplete accounting: showing verified rewards only. ≥ marks a known minimum, including zero; pending rewards are excluded.',
     unavailable: 'Pool rewards cannot be verified. Dashes do not mean zero.',
     stale: 'Stale data: the time windows end at the last update shown.',
     failed: 'Refresh failed. Showing the last verified figures and their timestamp.',
@@ -64,7 +64,6 @@
   }
   // Keep every zatoshi; converting large integer totals to Number would lose precision.
   function amount(value, partial = false) {
-    if (partial && value === '0') return '—';
     const digits = value.padStart(9, '0');
     const whole = BigInt(digits.slice(0, -8)).toLocaleString(locale);
     const fraction = digits.slice(-8).replace(/0+$/, '');
@@ -92,7 +91,7 @@
     for (const key of keys) {
       const window = snapshot[key];
       $(key).textContent = amount(window.rewardZat, partial);
-      $(`${key}-blocks`).textContent = partial && window.blocks === 0 ? labels.pending : blockCount(window.blocks, partial);
+      $(`${key}-blocks`).textContent = blockCount(window.blocks, partial);
       $(`${key}-maturity`).textContent = `${labels.mature}: ${amount(window.matureRewardZat, partial)} ZCL · ${labels.immature}: ${amount(window.immatureRewardZat, partial)} ZCL`;
     }
     const messages = [partial ? labels.partial : labels.live];
@@ -148,7 +147,7 @@
   const $=name=>document.getElementById('treasury-'+name);
   const text=es?{
     current:'Transferencias confirmadas según el registro del pool.',
-    partial:'Registro parcial: ≥ indica un mínimo verificado. Los guiones no significan cero.',
+    partial:'Registro parcial: ≥ indica un mínimo verificado, incluido cero. Los importes sin verificar están excluidos.',
     unavailable:'No se pueden verificar los ingresos de la tesorería. Los guiones no significan cero.',
     stale:'Observación desactualizada; se muestra la última verificación con su fecha.',
     failed:'No se pudo actualizar. Se conservan las últimas cifras verificadas con su fecha.',
@@ -158,7 +157,7 @@
     empty:'Todavía no hay ingresos confirmados registrados.',unknown:'No hay ingresos positivos verificados para representar.',
   }:{
     current:'Transfers confirmed in the pool journal.',
-    partial:'Partial journal: ≥ marks a verified minimum. Dashes do not mean zero.',
+    partial:'Partial journal: ≥ marks a verified minimum, including zero. Unverified amounts are excluded.',
     unavailable:'Treasury receipts cannot be verified. Dashes do not mean zero.',
     stale:'Stale observation; showing the last verification and its timestamp.',
     failed:'Refresh failed. Showing the last verified figures and their timestamp.',
@@ -172,7 +171,6 @@
   const count=value=>Number.isSafeInteger(value)&&value>=0&&value<=1000000000;
   const date=new Intl.DateTimeFormat(locale,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZone:'UTC'});
   function exact(value,partial=false){
-    if(partial&&value==='0')return '—';
     const digits=value.padStart(9,'0'),whole=BigInt(digits.slice(0,-8)).toLocaleString(locale),fraction=digits.slice(-8).replace(/0+$/,'');
     return (partial?'≥ ':'')+whole+(fraction?(es?',':'.')+fraction:'');
   }

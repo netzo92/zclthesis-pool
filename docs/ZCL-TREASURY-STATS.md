@@ -67,8 +67,9 @@ The existing mined summary supplies `canonicalStatus`; observations older than
 180 seconds are stale. Allocation uses the retained ledger's block status,
 without another per-block RPC pass. Missing/stale/partial canonical coverage,
 accounting holds or unresolved evidence make the aggregate partial. Show
-positive partial values as known retained-history subtotals; render a partial
-zero as unknown rather than a verified zero. Keep orphan counts, holds and
+partial values as known retained-history subtotals with a ≥ prefix, including
+zero. A displayed ≥ 0 is a lower bound, not a verified total of zero. Reserve
+dashes for unavailable data. Keep orphan counts, holds and
 observation time visible. No start date, rolling receipt windows, pre-page chart
 history or complete history beyond retained records is claimed.
 

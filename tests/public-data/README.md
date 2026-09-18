@@ -3,13 +3,15 @@
 Run the browser status tests without network access or a browser:
 
 ```sh
-node --test tests/public-data/status.test.mjs
+node --test tests/public-data/status.test.mjs tests/public-data/mined-display.test.mjs
 ```
 
 The fake clock and response fixtures check loading, current admission holds,
 unverifiable observations, eight-second request/body timeouts, independent
 three-minute expiry, suspended-page recovery, and late responses. They also
 check that node failure does not discard independently available mined totals.
+The mined-display tests distinguish partial numeric lower bounds (including zero)
+from complete zero totals and unavailable data in both languages.
 No test starts a miner or changes pool admission.
 
 The existing Python guard tests cover the richlist publisher's daemon-readiness

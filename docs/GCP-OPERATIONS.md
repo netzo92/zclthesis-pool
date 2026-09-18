@@ -258,7 +258,10 @@ to the canonical chain, they remain unknown until accounting is reconciled.
 Candidates still awaiting validation, missing/malformed reward rounds,
 unavailable headers and journal rows missing their block records increase
 `unknownBlocks`; `status: partial` then reports known amounts only. An accounting
-hold also yields `partial`. A failed database/readiness check, invalid publisher
+hold also yields `partial`. The dashboard displays every verified subtotal with
+a ≥ prefix, including zero, and shows the unresolved block count. These lower
+bounds do not claim pending rewards are zero. Dashes are reserved for unavailable
+data. A failed database/readiness check, invalid publisher
 payload, or more than 10,000 retained rows produces `status: unavailable` with
 null windows, never fabricated zeroes. Canonical-header work has a 20-second
 budget and the read-only CLI has a 30-second outer timeout. These bounds must be
@@ -381,3 +384,22 @@ checks in a separate headless browser. Its actual 30-second refresh advanced
 the graph and keyboard-accessible observation selector. That isolated browser
 attempted zero GPU workers or mining connections. Eight deployed assets matched
 reviewed source, including the unchanged mining/consent implementation.
+
+### 2026-09-18: dashboard lower bounds and pending rounds
+
+Read-only production SQL found 31 `generate` block records and 19 reward-round
+journals. Blocks 20–31 have no matching round. The earliest pending record,
+block 20 at height 3253230, was imported after block 19 at height 3253231.
+Shares through block 20's recorded cutoff had already been assigned to 3253231.
+`ZclRewardLedger::allocate()` therefore finds no eligible unassigned shares for
+block 20 and returns; its earlier-pending-block guard prevents later allocations.
+This is an accounting backlog, not evidence that the mining listener is down.
+The public report showed 742227745 verified zatoshis, 19 blocks, and 12 unknown
+blocks; block totals still require their canonical-header and journal checks.
+
+The display now renders partial zero subtotals as `≥ 0`, with an explicit warning
+that pending rewards are excluded. This does **not** reconcile the 12 missing
+rounds or alter balances, fees, allocation policy, payout gates, or share ownership.
+Reconciliation must establish the historical share windows and already credited
+payments before changing financial records. Do not remove the earlier-round guard
+or assign missing rewards to the operator merely to clear the dashboard warning.
